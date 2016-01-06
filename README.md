@@ -5,13 +5,13 @@ PHP Library for interacting with the Watershed API
 Use this PHP code library to interact with the Watershed API to manage organizations, users and report cards. 
 
 This library provides a simplified way to interact with the parts of the Watershed API most commonly required by
-partner and customer applications. Please contact (Watershed support)[https://watershedlrs.zendesk.com/hc/en-us/requests/new] 
+partner and customer applications. Please contact [Watershed support](https://watershedlrs.zendesk.com/hc/en-us/requests/new) 
 for help implmenting this library or to request coverage of other parts of the API. 
 
 Pull Requests and contributions of libraries in other languages are most welcome. 
 
 To interact with Watershed via xAPI (for example to send tracking data), please 
-use (TinCanPHP)[http://rusticisoftware.github.io/TinCanPHP/].
+use [TinCanPHP](http://rusticisoftware.github.io/TinCanPHP/).
 
 ## Installation
 To install the library, simply include watershed.php in your project. 
@@ -24,9 +24,9 @@ include ("watershed.php");
 
 ### Instantiate the class
 To interact with the library, first create an instance of the Watershed class. 
-The examples below show instances created to conenct to Watershed sandbox and production servers. You
+The examples below show instances created to connect to Watershed sandbox and production servers. You
 can either provide your Watershed API username and password (example 1), or provide a complete authentication 
-header to use (example 2). 
+header (example 2). 
 
 Example 1:
 ```php
@@ -53,7 +53,7 @@ $wsclient = new \WatershedClient\Watershed("https://watershedlrs.com", $auth);
 Each Watershed customer has their own organization. Watershed partner applications may have permission to create
 organizations. The name of the organization must be unique. 
 
-Record the orgId for use in all other API calls. All ids used in the API are integers. 
+Record the organization Id for use in all other API calls. All ids used in the API are integers. 
 
 ```php
 $orgId;
@@ -173,14 +173,22 @@ Use the Leaderboard report card to rank people, activities and time peroids by m
 
 #### Measures
 You can include any number of measures in the Leaderboard, but we recommend no more than three. Pass 
-measures as an array with name and optional match and title properties. 
+measures as an associative array with name, match and title keys. Match and title are optional. E.g.
 
+```php
+array (
+    "name" => "Success Count"
+)
+```
+
+##### Name
 Define measure names using a two word normal english phrase made up of an aggregation and a property. 
 
 Allowed aggregations are:
 * first
 * latest
 * highest
+* lowest
 * longest
 * shortest
 * average
@@ -201,10 +209,11 @@ verb  | verb.id
 completion  | result.completion
 success  | result.success
 
-Notes: Some other properties are possible via the API, but not supported by this library. `durationCentiseconds` is an 
-integer value calculated by Watershed based on result.duration. 
+Notes: 
+* Some other properties are possible via the API, but not supported by this library.
+* `durationCentiseconds` is an integer value calculated by Watershed based on result.duration. 
 
-Measure phrases normally take the structure <aggregation> <property> and are case insensitive e.g.
+Measure phrases normally take the structure 'aggregation' 'property' and are case insensitive e.g.
 * First Score 
 * Shortest time
 * average raw score
@@ -215,8 +224,9 @@ a distinct count be prepending the word "unique". For example:
 * Unique activity id count
 * completion count
 
+##### Title
 Normally the measure name is suitable natural english to display to the user, but if not, add a title key to the 
-measure array E.g.
+measure array.
 ```php
 array (
     "name" => "Success Count",
@@ -224,8 +234,9 @@ array (
 )
 ```
 
+##### Match
 Use the match key to have Watershed only count properties where the value you supply matches the value in the statement. 
-This defaults to TRUE for success and completion properties. E.g.
+This defaults to TRUE for success and completion properties.
 
 ```php
 array (
@@ -262,7 +273,7 @@ $measures = array(
         "title" => "Bookmarks made"
     ),
 );
-$dimension = "activity type"'
+$dimension = "activity type";
 $response = $wsclient->createLeaderBoardCard(
     $measures, 
     $dimension,
@@ -300,7 +311,7 @@ $measures = array(
         "title" => "Bookmarks made"
     ),
 );
-$dimension = "activity type"'
+$dimension = "activity type";
 $response = $wsclient->createCorrelationCard(
     $measures, 
     $dimension,
@@ -323,7 +334,6 @@ If you are creating a lot of cards, you may wish to put cards into group. We rec
 rather than by card type. You will need to have a list of card ids to group, an organization id, a unique group name and a card title. 
 In order to ensure that the group name is unqiue, we recommend prefixing the name with an id representing your application, for example "yourapp-group12345". 
 
-For example:
 ```php
 $groupName = "yourapp-group12345";
 $groupTitle = "Some Activity";
@@ -339,13 +349,11 @@ else {
 } 
 ```
 
-Hint: You can put existing group cards into a new group to create subgroups. 
+Hint: You can put existing group cards into a new group to create sub-groups. 
 
 #### Advanced Grouping
 Normally cards that are grouped are newly created top level cards. To create groups within an existing group, you need to pass an 
 additional Parent Group Name parameter. Ensure that all cards you want to group are in the parent group before creating the grouping.
-
-For example:
 
 ```php
 $parentGroupName = "yourapp-group12345";
@@ -363,5 +371,5 @@ else {
 } 
 ```
 
-If you are commonly creating sub groups with new cards, please let us know. It is possible for us to add a more compelex function
+If you are commonly creating sub groups with new cards, please let us know. It is possible for us to add the facility
 to put newly created top level cards directly into a subgroup. 
