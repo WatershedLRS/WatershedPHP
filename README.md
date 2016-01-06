@@ -20,7 +20,7 @@ To install the library, simply include watershed.php in your project.
 include ("watershed.php");
 ```
 
-## Usage
+## Basic usage
 
 ### Instantiate the class
 To interact with the library, first create an instance of the Watershed class. 
@@ -53,7 +53,10 @@ $wsclient = new \WatershedClient\Watershed("https://watershedlrs.com", $auth);
 Each Watershed customer has their own organization. Watershed partner applications may have permission to create
 organizations. The name of the organization must be unique. 
 
+Record the orgId for use in all other API calls. All ids used in the API are integers. 
+
 ```php
+$orgId;
 $orgName = "Name of Organization";
 
 $response = $wsclient->createOrganization($orgName);
@@ -76,7 +79,6 @@ Invite a user with a given email address to the organization. Possible roles are
 Admins and owners are able to create reports; users are only able to view reports. 
 
 ```php
-$orgId = 12345;
 $userName = "Aladdin"
 $userEmail = "aladdin@example.com"
 $role = "admin";
@@ -94,7 +96,6 @@ else {
 Use these details to interact with Watershed via xAPI.
 
 ```php
-$orgId = 12345;
 $APName = "Name of activity provider.";
 $response = $wsclient->createActivityProvider($APName, $orgId);
 if ($response["success"]) {
@@ -107,3 +108,260 @@ else {
     echo "Failed to create Activity Provider. Status: ". $response["status"].". The server said: ".$response["content"]."<br/>";
 }
 ```
+## Card creation
+When you create cards, you might like to record the card ids so that you can group them together (see below).
+
+```php
+$cardIds = array();
+```
+
+### Skills
+Use the Skills report card to get an overview of usage of an activity that will be practiced multiple times.
+
+```php
+$activityName = "Some Activity";
+$xAPIActivityId = "https://example.com/foo/bar";
+
+$response = $wsclient->createSkillCard($activityName, $xAPIActivityId, $orgId);
+if ($response["success"]) {
+    $cardId = $response["cardId"];
+    $skillId = $response["skillId"];
+    echo "Skill card created for {$activityName} with id {$cardId}. <br/>";
+    array_push($cardIds, $cardId);
+} 
+else {
+    echo "Failed to create Skill card for {$activityName}. Status: ". $response["status"].". The server said: ".$response["content"]."<br/>";
+}
+```
+
+### Activity Stream
+Use the Activity Stream report card to see learner activity for all xAPI activities with ids starting with the URL 
+you specify. The example below will create an activity stream filtered for all activities with ids starting "http://example.com/".
+
+```php
+$activityName = "Some Activity";
+$xAPIActivityId = "https://example.com/";
+$response = $wsclient->createActivityStreamCard($activityName, $xAPIActivityId, $orgId);
+if ($response["success"]) {
+    $cardId = $response["cardId"];
+    echo "Activity Stream card created for {$activityName} with id {$cardId}. <br/>";
+    array_push($cardIds, $cardId);
+} 
+else {
+    echo "Failed to create Activity Stream card for {$activityName}. Status: ". $response["status"].". The server said: ".$response["content"]."<br/>";
+}
+```
+
+### Activity Detail
+Use the Activity Detail report card to look in detail at quizzes, assessments, tests etc. 
+```php
+$activityName = "Some Activity";
+$xAPIActivityId = "https://example.com/foo/bar";
+$response = $wsclient->createActivityDetailCard($activityName, $xAPIActivityId, $orgId);
+if ($response["success"]) {
+    $cardId = $response["cardId"];
+    echo "Activity Detail card created for {$activityName} with id {$cardId}. <br/>";
+    array_push($cardIds, $cardId);
+} 
+else {
+    echo "Failed to create Activity Detail card for {$activityName}. Status: ". $response["status"].". The server said: ".$response["content"]."<br/>";
+}
+```
+
+### Leaderboard
+Use the Leaderboard report card to rank people, activities and time peroids by measures you create. 
+
+#### Measures
+You can include any number of measures in the Leaderboard, but we recommend no more than three. Pass 
+measures as an array with name and optional match and title properties. 
+
+Define measure names using a two word normal english phrase made up of an aggregation and a property. 
+
+Allowed aggregations are:
+* first
+* latest
+* highest
+* longest
+* shortest
+* average
+* total
+* count
+
+The table below outlines allowed statement properties and key words;
+
+Key word  | xAPI property
+------------- | -------------
+score  | result.score.scaled
+scaled  | result.score.scaled
+raw | result.score.raw
+time  | result.durationCentiseconds
+statement  | id
+activity  | object.id
+verb  | verb.id
+completion  | result.completion
+success  | result.success
+
+Notes: Some other properties are possible via the API, but not supported by this library. `durationCentiseconds` is an 
+integer value calculated by Watershed based on result.duration. 
+
+Measure phrases normally take the structure <aggregation> <property> and are case insensitive e.g.
+* First Score 
+* Shortest time
+* average raw score
+
+The exception is count aggregations, which use the opposite order to maintain natural English. You can request 
+a distinct count be prepending the word "unique". For example:
+
+* Unique activity id count
+* completion count
+
+Normally the measure name is suitable natural english to display to the user, but if not, add a title key to the 
+measure array E.g.
+```php
+array (
+    "name" => "Success Count",
+    "title" => "Passes"
+)
+```
+
+Use the match key to have Watershed only count properties where the value you supply matches the value in the statement. 
+This defaults to TRUE for success and completion properties. E.g.
+
+```php
+array (
+    "name" => "Success Count",
+    "match" => FALSE,
+    "title" => "Fails"
+)
+```
+#### Dimension
+Possible dimensions the measures are applied on are:
+
+* person
+* activity
+* activity type
+* day
+* week
+* month
+* year
+
+#### Complete example
+```php
+$activityName = "Some Activity";
+$xAPIActivityId = "https://example.com/foo/bar";
+$measures = array(
+    array (
+        "name" => "First Score",
+    ),
+    array (
+        "name" => "Success Count",
+    ),
+    array (
+        "name" => "Verb Count",
+        "match" => "http://id.tincanapi.com/verb/bookmarked",
+        "title" => "Bookmarks made"
+    ),
+);
+$dimension = "activity type"'
+$response = $wsclient->createLeaderBoardCard(
+    $measures, 
+    $dimension,
+    $activityName,
+    $xAPIActivityId, 
+    $orgId
+);
+if ($response["success"]) {
+    $cardId = $response["cardId"];
+    echo "Leaderboard card created for {$activityName} with id {$cardId}. <br/>";
+    array_push($cardIds, $cardId);
+} 
+else {
+    echo "Failed to create Leaderboard card for {$activityName}. Status: ". $response["status"].". The server said: ".$response["content"]."<br/>";
+}  
+```
+
+### Correlation
+Use the Correlation card to compare two or more measures across a dimension. The function call to create a Correlation card
+is very similar to the call for a Leaderboard:
+
+```php
+$activityName = "Some Activity";
+$xAPIActivityId = "https://example.com/foo/bar";
+$measures = array(
+    array (
+        "name" => "First Score",
+    ),
+    array (
+        "name" => "Success Count",
+    ),
+    array (
+        "name" => "Verb Count",
+        "match" => "http://id.tincanapi.com/verb/bookmarked",
+        "title" => "Bookmarks made"
+    ),
+);
+$dimension = "activity type"'
+$response = $wsclient->createCorrelationCard(
+    $measures, 
+    $dimension,
+    $activityName,
+    $xAPIActivityId, 
+    $orgId
+);
+if ($response["success"]) {
+    $cardId = $response["cardId"];
+    echo "Correlation card created for {$activityName} with id {$cardId}. <br/>";
+    array_push($cardIds, $cardId);
+} 
+else {
+    echo "Failed to create Correlation card for {$activityName}. Status: ". $response["status"].". The server said: ".$response["content"]."<br/>";
+} 
+```
+
+### Grouping cards
+If you are creating a lot of cards, you may wish to put cards into group. We recommend grouping by activity or group of activitites 
+rather than by card type. You will need to have a list of card ids to group, an organization id, a unique group name and a card title. 
+In order to ensure that the group name is unqiue, we recommend prefixing the name with an id representing your application, for example "yourapp-group12345". 
+
+For example:
+```php
+$groupName = "yourapp-group12345";
+$groupTitle = "Some Activity";
+
+$response = $wsclient->groupCards($cardIds, $orgId, $groupName, $groupTitle);
+if ($response["success"]) {
+    $cardId = $response["cardId"];
+    $groupId = $response["groupId"];
+    echo "Group card created with id {$cardId} for group {$groupId}. <br/>";
+} 
+else {
+    echo "Failed to create Group card. Status: ". $response["status"].". The server said: ".$response["content"]."<br/>";
+} 
+```
+
+Hint: You can put existing group cards into a new group to create subgroups. 
+
+#### Advanced Grouping
+Normally cards that are grouped are newly created top level cards. To create groups within an existing group, you need to pass an 
+additional Parent Group Name parameter. Ensure that all cards you want to group are in the parent group before creating the grouping.
+
+For example:
+
+```php
+$parentGroupName = "yourapp-group12345";
+$groupName = "yourapp-group5678";
+$groupTitle = "Some Activity";
+
+$response = $wsclient->groupCards($cardIds, $orgId, $groupName, $groupTitle, $parentGroupName);
+if ($response["success"]) {
+    $cardId = $response["cardId"];
+    $groupId = $response["groupId"];
+    echo "Group card created with id {$cardId} for group {$groupId}. <br/>";
+} 
+else {
+    echo "Failed to create Group card. Status: ". $response["status"].". The server said: ".$response["content"]."<br/>";
+} 
+```
+
+If you are commonly creating sub groups with new cards, please let us know. It is possible for us to add a more compelex function
+to put newly created top level cards directly into a subgroup. 
