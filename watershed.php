@@ -455,6 +455,35 @@ class Watershed {
         return $return;
     }
 
+        /*
+    @method deleteActivityProvider Calls the API to delete actvity provider credentials. 
+    @param {String} [$id] Id of the activity to delete. 
+    @param {String} [$orgId] Id of the organization to delete the AP on.
+    @return {Array} Details of the result of the request
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response
+        @return {Integer} [status] HTTP status code of the response e.g. 201
+    */
+    public function deleteActivityProvider($id, $orgId) {
+        $key = $this->getUUID();
+        $secret = $this->getUUID();
+
+        $response = $this->sendRequest("DELETE", "organizations/{$orgId}/activity-providers/{$id}", array());
+
+        $success = FALSE;
+        if ($response["status"] === 200) {
+            $success = TRUE ;
+        }
+
+        $return = array (
+            "success" => $success, 
+            "status" => $response["status"],
+            "content" => $response["content"],
+        );
+
+        return $return;
+    }
+
     /*
     @method createInvitation Calls the API to invite a user to an org. 
     @param {String} [$name] Full name of the person to invite.
