@@ -881,27 +881,23 @@ class Watershed {
         $groupId;
 
         //get the parent group id
-        $response = $this->sendRequest(
-            "GET", 
-            "organizations/{$orgId}/card-groups/?name={$parentGroupName}"
-        );
-
+        $response = $this->getCardGroup($orgId, $parentGroupName);
         if ($response["status"] == 200) {
-            $responseContent = json_decode($response["content"], TRUE);
-            $parentGroupId = $responseContent["results"][0]["id"];
-            $startingCards = $responseContent["results"][0]["cardIds"];
+            $parentGroupId = $response["groupId"];
+            $startingCards = $response["cardIds"];
         }
         else {
+            $response["method"] = "getCardGroup";
             return $response;
         }
 
         //create card group
         $response = $this->createCardGroup($cardGroupName, $cardIds, $orgId);
-
         if ($response["success"]) {
             $groupId = $response["groupId"];
         }
         else {
+            $response["method"] = "createCardGroup";
             return $response;
         }
 
@@ -920,12 +916,14 @@ class Watershed {
             $cardId = $response["cardId"];
         }
         else {
+            $response["method"] = "createCard";
             return $response;
         }
 
         //hide grouped cards from parent group
         $response = $this->hideGroupedCards($startingCards, $cardIds, $cardId, $parentGroupId, $parentGroupName, $orgId);
         if (!$response["success"]) {
+            $response["method"] = "hideGroupedCards";
             return $response;
         }
 
@@ -935,6 +933,48 @@ class Watershed {
             "groupId" => $groupId,
             "cardId" => $cardId
         );
+    }
+
+    /*
+    @method getCardGroup Fetches a card group, if it exists. 
+    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {String} [$cardGroupName] Unqiue name of the card group.
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? (false if group does not exist)
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 404 if group does not exist
+        @return {Integer} [groupId] Id of the group found. 
+        @return {Array} [cardIds] Ids of the cards in the group.
+    */
+    public function getCardGroup($orgId, $cardGroupName) {
+        $response = $this->sendRequest(
+            "GET", 
+            "organizations/{$orgId}/card-groups/?name={$cardGroupName}"
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $content = json_decode($response["content"]);
+
+            if ($content->count > 0) {
+                $return["success"] = TRUE;
+                $return["groupId"] = $content->results[0]->id;
+                $return["cardIds"] = $content->results[0]->cardIds;
+            }
+            else {
+                // No result
+                $return["status"] = 404;
+            }
+
+        }
+
+        return $return;
+
     }
 
     /*
@@ -1006,8 +1046,11 @@ class Watershed {
         @return {Integer} [status] HTTP status code of the response e.g. 201.
     */
     public function hideGroupedCards ($startingCards, $groupedCards, $groupCardId, $parentGroupId, $parentGroupName, $orgId){
-        $newCards = array_diff($startingCards, $groupedCards);
-        array_push($newCards, $groupCardId);
+        $newCards = array_values(array_diff($startingCards, $groupedCards));
+
+        if (!is_null($groupCardId)) {
+            array_push($newCards, $groupCardId);
+        }
 
         $response = $this->sendRequest(
             "PUT", 
@@ -1016,6 +1059,78 @@ class Watershed {
                 "content" => json_encode(
                     array(
                         "name" => $parentGroupName,
+                        "cardIds" => $newCards,
+                        "organization" => array (
+                            "id" => $orgId
+                        )
+                    )
+                )
+            )
+        );
+
+        $success = FALSE;
+        if ($response["status"] === 204) {
+            $success = TRUE ;
+        }
+
+        return array (
+            "success" => $success, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+    }
+
+        /*
+    @method moveCardsGroup removes a set of cards from one group and adds them to another.
+    @param {Array} [$cardIds] List of integer card ids. 
+        Those cards which are to be moved. 
+    @param {String} [$newGroupName] Name of the card group to move the cards to.
+    @param {String} [$oldGroupName] Name of the card group to move the cards from.
+    @param {String} [$orgId] Id of the organization the group exists in.
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 201.
+    */
+    public function moveCardsGroup ($cardIds, $newGroupName, $oldGroupName, $orgId){
+        if ($oldGroupName == NULL) {
+            $oldGroupName = "ws-activity";
+        }
+
+        // remove cards from the old group
+        $oldGroup = $this->getCardGroup($orgId, "ws-activity");
+        var_dump($oldGroup);
+
+        if ($oldGroup['success'] === FALSE) {
+            $oldGroup['method'] = 'getCardGroup';
+            return $oldGroup;
+        }
+
+        $response = $this->hideGroupedCards ($oldGroup['cardIds'], $cardIds, null, $oldGroup['groupId'], $oldGroupName, $orgId);
+
+        if ($response['success'] === FALSE) {
+            $response['method'] = 'hideGroupedCards';
+            return $response;
+        }
+
+        // add cards to the new group
+        $newGroup = $this->getCardGroup($orgId, $newGroupName);
+        var_dump($newGroupName);
+        
+        if ($newGroup['success'] === FALSE) {
+            $newGroup['method'] = 'getCardGroup';
+            return $newGroup;
+        }
+
+        $newCards = array_merge($newGroup['cardIds'], $cardIds);
+
+        $response = $this->sendRequest(
+            "PUT", 
+            "card-groups/".$newGroup['groupId'], 
+            array (
+                "content" => json_encode(
+                    array(
+                        "name" => $newGroupName,
                         "cardIds" => $newCards,
                         "organization" => array (
                             "id" => $orgId

@@ -349,9 +349,45 @@ else {
 } 
 ```
 
-Hint: You can put existing group cards into a new group to create sub-groups. 
+Hint: You can put existing group cards into a new group to create sub-groups.
 
-#### Advanced Grouping
+#### Fetch a group
+You can fetch a group by name, for example if you want to see if a group with a particular name already exists or get a list
+of card ids contained in the group. 
+
+```php
+$response = $wsclient->getCardGroup($orgId, $courseGroupName);
+
+if ($response['success']) {
+    $cardIds = $response["cardIds"];
+    $groupId = $response["groupId"];
+    echo "Group found with id {$groupId}. <br/>";
+}
+elseif ($response['status'] == 404) {
+    echo "Request successful but group not found. <br/>";
+}
+else {
+    echo "Error when searching for group. Status: ". $response["status"].". The server said: ".$response["content"]."<br/>";
+}
+```
+
+#### Move cards into a group
+You can move cards into a group either from another group or from the dashboard. The example below moves a single card from the dashboard. 
+
+```php
+$newGroupName = "yourapp-group12345";
+$oldGroupName = NULL;
+$response = $wsclient->moveCardsGroup(array($cardId), $newGroupName, $oldGroupName, $orgId);
+
+if ($response['success']) {
+    echo "Card(s) moved successfully. <br/>";
+}
+else {
+    echo "Fail to move card(s). Status: ". $response["status"].". The server said: ".$response["content"]."<br/>";
+}
+```
+
+#### Groups within groups
 Normally cards that are grouped are newly created top level cards. To create groups within an existing group, you need to pass an 
 additional Parent Group Name parameter. Ensure that all cards you want to group are in the parent group before creating the grouping.
 
@@ -371,5 +407,4 @@ else {
 } 
 ```
 
-If you are commonly creating sub groups with new cards, please let us know. It is possible for us to add the facility
-to put newly created top level cards directly into a subgroup. 
+ 
