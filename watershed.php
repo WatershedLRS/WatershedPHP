@@ -33,8 +33,9 @@ class Watershed {
         "correlation" => 261,
         "leaderboard" => 332,
         "skills" => 301,
-        "group" => 281
-
+        "group" => 281,
+        "barchart" => 571,
+        "linechart" => 781
     );
 
     /*
@@ -636,6 +637,33 @@ class Watershed {
     }
 
     /*
+    @method deleteCard Calls the API to delete a card. 
+    @param {String} [$id] Id of the card to delete. 
+    @param {String} [$orgId] Id of the organization to delete the card on.
+    @return {Array} Details of the result of the request
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response
+        @return {Integer} [status] HTTP status code of the response e.g. 201
+    */
+    public function deleteCard($id, $orgId) {
+
+        $response = $this->sendRequest("DELETE", "cards/{$id}", array());
+
+        $success = FALSE;
+        if ($response["status"] === 200) {
+            $success = TRUE ;
+        }
+
+        $return = array (
+            "success" => $success, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        return $return;
+    }
+
+    /*
     @method createSkillCard Calls the API to create a skill, then create a card for that skill
     @param {String} [$activityName] xAPI activity name to use in the skill.
     @param {String} [$xAPIActivityId] xAPI activity id to use in the skill.
@@ -748,13 +776,14 @@ class Watershed {
     @param {String} [$activityName] xAPI activity name 
     @param {String} [$xAPIActivityId] xAPI activity id
     @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Array} [$filter] Filter to use in place of default
     @return {Array} Details of the result of the request.
         @return {Boolean} [success] Was the request was a success? 
         @return {String} [content] Raw content of the response.
         @return {Integer} [status] HTTP status code of the response e.g. 201.
         @return {Integer} [cardId] Id of the card created. 
     */
-    public function createLeaderBoardCard($measureList, $dimensionName, $activityName, $xAPIActivityId, $orgId) {
+    public function createLeaderBoardCard($measureList, $dimensionName, $activityName, $xAPIActivityId, $orgId, $filter = null) {
         $measureNames = array();
         $measures = array();
         foreach ($measureList as $measureItem) {
@@ -772,13 +801,17 @@ class Watershed {
             $this->getDimension($dimensionName)
         );
 
-        $configuration = array(
-            "filter" => array(
+        if ($filter == null) {
+            $filter = array(
                 "activityIds" => array (
                     "ids" => array ($xAPIActivityId),
                     "regExp" => FALSE
                 )
-            ),
+            );
+        }
+
+        $configuration = array(
+            "filter" => $filter,
             "dimensions" => $dimensions,
             "measures" => $measures
         );
@@ -791,6 +824,141 @@ class Watershed {
             $configuration, 
             "leaderboard", 
             "{$activityName} Leaderboard", 
+            $description, 
+            $description, 
+            $orgId
+        );
+        return $response;
+    }
+
+    /*
+    @method createBarchartCard Calls the API to create a barchart card for a given activity id.
+    @param {Array} [$measureList] List measures to use in the barchart. Contains an array of measure config arrays. 
+        Each measure config array has a name key, and optional match and title keys. See getMeasure above for details. 
+    @param {Array} [$dimensionName] xAPI activity name 
+    @param {String} [$activityName] xAPI activity name 
+    @param {String} [$xAPIActivityId] xAPI activity id
+    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Array} [$filter] Filter to use in place of default
+    @param {Bool} [$singleGraph] Present all measures on a single chart. Default true. 
+    @param {Bool} [$vertical] Arrange the bar chart vertically. Default true. 
+    @return {Array} Details of the result of the request.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 201.
+        @return {Integer} [cardId] Id of the card created. 
+    */
+    public function createBarchartCard($measureList, $dimensionName, $activityName, $xAPIActivityId, $orgId, $filter = null, $singleGraph = true, $vertical = true) {
+        $measureNames = array();
+        $measures = array();
+        foreach ($measureList as $measureItem) {
+            if (!isset($measureItem["match"])) {
+                $measureItem["match"] = NULL;
+            }
+            if (!isset($measureItem["title"])) {
+                $measureItem["title"] = $measureItem["name"];
+            }
+            array_push($measures, $this->getMeasure($measureItem["name"], $measureItem["match"], $measureItem["title"]));
+            array_push($measureNames, $measureItem["title"]);
+        }    
+
+        $dimensions = array(
+            $this->getDimension($dimensionName)
+        );
+
+        if ($filter == null) {
+            $filter = array(
+                "activityIds" => array (
+                    "ids" => array ($xAPIActivityId),
+                    "regExp" => FALSE
+                )
+            );
+        }
+
+        $configuration = array(
+            "filter" => $filter,
+            "dimensions" => $dimensions,
+            "measures" => $measures,
+            "singleGraph" => $singleGraph,
+            "vertical" => $vertical
+        );
+
+        $description = "Use this Barchart to find the ";
+        $description .= $this->buildListString($measureNames);
+        $description .= " of each {$dimensionName}.";
+
+        $response = $this->createCard(
+            $configuration, 
+            "barchart", 
+            "{$activityName} Barchart", 
+            $description, 
+            $description, 
+            $orgId
+        );
+        return $response;
+    }
+
+
+    /*
+    @method createBarchartCard Calls the API to create a barchart card for a given activity id.
+    @param {Array} [$measureList] List measures to use in the barchart. Contains an array of measure config arrays. 
+        Each measure config array has a name key, and optional match and title keys. See getMeasure above for details. 
+    @param {Array} [$dimensionName] xAPI activity name 
+    @param {String} [$activityName] xAPI activity name 
+    @param {String} [$xAPIActivityId] xAPI activity id
+    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Array} [$filter] Filter to use in place of default
+    @param {Bool} [$singleGraph] Present all measures on a single chart. Default true. 
+    @param {Bool} [$line] Use a single line instead of an area effect. Default true. 
+    @return {Array} Details of the result of the request.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 201.
+        @return {Integer} [cardId] Id of the card created. 
+    */
+    public function createLinechartCard($measureList, $dimensionName, $activityName, $xAPIActivityId, $orgId, $filter = null, $singleGraph = true, $line = true) {
+        $measureNames = array();
+        $measures = array();
+        foreach ($measureList as $measureItem) {
+            if (!isset($measureItem["match"])) {
+                $measureItem["match"] = NULL;
+            }
+            if (!isset($measureItem["title"])) {
+                $measureItem["title"] = $measureItem["name"];
+            }
+            array_push($measures, $this->getMeasure($measureItem["name"], $measureItem["match"], $measureItem["title"]));
+            array_push($measureNames, $measureItem["title"]);
+        }    
+
+        $dimensions = array(
+            $this->getDimension($dimensionName)
+        );
+
+        if ($filter == null) {
+            $filter = array(
+                "activityIds" => array (
+                    "ids" => array ($xAPIActivityId),
+                    "regExp" => FALSE
+                )
+            );
+        }
+
+        $configuration = array(
+            "filter" => $filter,
+            "dimensions" => $dimensions,
+            "measures" => $measures,
+            "singleGraph" => $singleGraph,
+            "line" => $line
+        );
+
+        $description = "Use this Linechart to find the ";
+        $description .= $this->buildListString($measureNames);
+        $description .= " of each {$dimensionName}.";
+
+        $response = $this->createCard(
+            $configuration, 
+            "linechart", 
+            "{$activityName} Linechart", 
             $description, 
             $description, 
             $orgId
@@ -937,7 +1105,6 @@ class Watershed {
 
     /*
     @method getCardGroup Fetches a card group, if it exists. 
-    @param {String} [$orgId] Id of the organization to create the card on.
     @param {String} [$cardGroupName] Unqiue name of the card group.
     @return {Array} Details of the result of the series of requests.
         @return {Boolean} [success] Was the request was a success? (false if group does not exist)
@@ -946,7 +1113,7 @@ class Watershed {
         @return {Integer} [groupId] Id of the group found. 
         @return {Array} [cardIds] Ids of the cards in the group.
     */
-    public function getCardGroup($orgId, $cardGroupName) {
+    public function getCardGroup($cardGroupName) {
         $response = $this->sendRequest(
             "GET", 
             "organizations/{$orgId}/card-groups/?name={$cardGroupName}"
@@ -971,6 +1138,35 @@ class Watershed {
                 $return["status"] = 404;
             }
 
+        }
+
+        return $return;
+
+    }
+
+    /*
+    @method deleteCardGroup Deletes a card group,. 
+    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Integer} [$cardGroupId] Unqiue id of the card group.
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 404 if group does not exist
+    */
+    public function deleteCardGroup($orgId, $cardGroupId) {
+        $response = $this->sendRequest(
+            "DELETE", 
+            "card-groups/{$cardGroupId}"
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $return["success"] = TRUE;
         }
 
         return $return;
@@ -1093,12 +1289,12 @@ class Watershed {
         @return {Integer} [status] HTTP status code of the response e.g. 201.
     */
     public function moveCardsGroup ($cardIds, $newGroupName, $oldGroupName, $orgId){
-        if ($oldGroupName == NULL) {
+        if ($oldGroupName == null) {
             $oldGroupName = "ws-activity";
         }
 
         // remove cards from the old group
-        $oldGroup = $this->getCardGroup($orgId, "ws-activity");
+        $oldGroup = $this->getCardGroup($orgId, $oldGroupName);
         var_dump($oldGroup);
 
         if ($oldGroup['success'] === FALSE) {
