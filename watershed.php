@@ -580,6 +580,47 @@ class Watershed {
     }
 
     /*
+    @method getCard Fetches a card group, if it exists. 
+    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {String} [$cardId] Id of the card.
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? (false if group does not exist)
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 404 if group does not exist
+        @return {Integer} [groupId] Id of the group found. 
+        @return {Array} [cardIds] Ids of the cards in the group.
+    */
+    public function getCard($orgId, $cardId) {
+        $response = $this->sendRequest(
+            "GET", 
+            "organizations/{$orgId}/cards/?id={$cardId}"
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $content = json_decode($response["content"]);
+
+            if ($content->count > 0) {
+                $return["success"] = TRUE;
+                $return["cardId"] = $content->results[0]->id;
+            }
+            else {
+                // No result
+                $return["status"] = 404;
+            }
+
+        }
+
+        return $return;
+
+    }
+
+    /*
     @method createCard Calls the API to create a card. use helper functions for specific card types. 
     @param {Array} [$configuration] Card configuration "object" (do not JSON encode!).
     @param {String} [$template] name of card template to use e.g. "leaderboard" or "Activity Detail".
@@ -1105,6 +1146,7 @@ class Watershed {
 
     /*
     @method getCardGroup Fetches a card group, if it exists. 
+    @param {String} [$orgId] Id of the organization to create the card on.
     @param {String} [$cardGroupName] Unqiue name of the card group.
     @return {Array} Details of the result of the series of requests.
         @return {Boolean} [success] Was the request was a success? (false if group does not exist)
@@ -1113,7 +1155,7 @@ class Watershed {
         @return {Integer} [groupId] Id of the group found. 
         @return {Array} [cardIds] Ids of the cards in the group.
     */
-    public function getCardGroup($cardGroupName) {
+    public function getCardGroup($orgId, $cardGroupName) {
         $response = $this->sendRequest(
             "GET", 
             "organizations/{$orgId}/card-groups/?name={$cardGroupName}"
@@ -1295,7 +1337,6 @@ class Watershed {
 
         // remove cards from the old group
         $oldGroup = $this->getCardGroup($orgId, $oldGroupName);
-        var_dump($oldGroup);
 
         if ($oldGroup['success'] === FALSE) {
             $oldGroup['method'] = 'getCardGroup';
@@ -1311,7 +1352,6 @@ class Watershed {
 
         // add cards to the new group
         $newGroup = $this->getCardGroup($orgId, $newGroupName);
-        var_dump($newGroupName);
         
         if ($newGroup['success'] === FALSE) {
             $newGroup['method'] = 'getCardGroup';
@@ -1346,5 +1386,107 @@ class Watershed {
             "status" => $response["status"],
             "content" => $response["content"]
         );
+    }
+
+    /*
+    @method getPersonByPersona Fetches a person by persona, if it exists. 
+    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Object} [$persona] Persona object.
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? (false if group does not exist)
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 404 if group does not exist
+        @return {Integer} [personId] Person's id
+        @return {String} [name] Person's name
+        @return {Array} [personas] List of personas belonging to the persona
+    */
+    public function getPersonByPersona($orgId, $persona) {
+        $response = $this->sendRequest(
+            "GET", 
+            'organizations/'.$orgId.'/people/with-persona?persona='.urlencode(json_encode($persona))
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $content = json_decode($response["content"]);
+            $return["success"] = TRUE;
+            $return["personId"] = $content->id;
+            $return["name"] = $content->name;
+            $return["personas"] = $content->personas;
+        }
+
+        return $return;
+    }
+
+    /*
+    @method createPerson Creates a person 
+    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Object} [$person] Person object.
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? (false if group does not exist)
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 404 if group does not exist
+        @return {Integer} [personId] Person's id
+    */
+    public function createPerson($orgId, $person) {
+        $response = $this->sendRequest(
+            "POST", 
+            'organizations/'.$orgId.'/people/',
+            array (
+                'content' => json_encode($person)
+            )
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 201) {
+            $content = json_decode($response["content"]);
+            $return["success"] = TRUE;
+            $return["personId"] = $content->id;
+        }
+
+        return $return;
+    }
+
+    /*
+    @method updatePerson Creates a person 
+    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Object} [$person] Person object.
+    @param {Integer} [personId] Person's id
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? (false if group does not exist)
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 404 if group does not exist
+    */
+    public function updatePerson($orgId, $personId, $person) {
+        $response = $this->sendRequest(
+            "PUT", 
+            'organizations/'.$orgId.'/people/'.$personId,
+            array (
+                'content' => json_encode($person)
+            )
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 204) {
+            $content = json_decode($response["content"]);
+            $return["success"] = TRUE;
+        }
+
+        return $return;
     }
 }
