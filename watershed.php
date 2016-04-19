@@ -1095,6 +1095,18 @@ class Watershed {
             $parentGroupId = $response["groupId"];
             $startingCards = $response["cardIds"];
         }
+        else if ($response["status"] == 404 && $response["content"] == '{"count":0,"results":[]}') {
+            //parent group does not exist, create it
+            $response = $this->createCardGroup($cardGroupName, $cardIds, $orgId);
+            if ($response["success"]) {
+                $parentGroupId = $response["groupId"];
+                $startingCards = [];
+            }
+            else {
+                $response["method"] = "createCardGroup-parent";
+                return $response;
+            }
+        }
         else {
             $response["method"] = "getCardGroup";
             return $response;
