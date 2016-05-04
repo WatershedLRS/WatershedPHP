@@ -17,6 +17,7 @@ Watershed client library
 */
 
 namespace WatershedClient;
+use Exception;
 
 class Watershed {
 
@@ -24,6 +25,9 @@ class Watershed {
 
     protected $endpoint;
     protected $auth;
+    protected $orgId;
+    protected $dashboard;
+    protected $dashboardId;
 
     //look-up for card template ids
     public $cardTemplateList = array (
@@ -50,10 +54,14 @@ class Watershed {
         header value if not provided.
         @param {String} [password] Watershed password to generate Basic HTTP Authentication 
         header value if not provided.
+    @param {Integer} [$orgId] Organization ID to make calls in
+    @param {Integer} [$dashboard] Dashboard ID to make calls in
     */
-    public function __construct($url, $authCfg) {
+    public function __construct($url, $authCfg, $orgId, $dashboard) {
         $this->setEndpoint($url);
         $this->setAuth($authCfg);
+        $this->setOrgId($orgId);
+        $this->setDashboard($dashboard);
     }
 
     /*
@@ -101,6 +109,33 @@ class Watershed {
                 break;
         }
 
+        return $this;
+    }
+
+    /*
+    @method setOrgId Sets the org id to use. 
+    @param {String} [$value] dashboard name
+    */
+    public function setOrgId($value) {
+        $this->orgId = $value;
+        return $this;
+    }
+
+    /*
+    @method setDashboard Sets the dashboard to use. 
+    @param {String} [$value] dashboard name
+    */
+    public function setDashboard($value) {
+        //if (!$this->dashboard == $value){
+            $this->dashboard = $value;
+            $response = $this->getCardGroup($this->orgId, $value);
+            if ($response["status"] == 200) {
+                $this->dashboardId = $response["groupId"];
+            }
+            else {
+                throw new Exception('Unable to set dashboard id.');
+            }
+        //}
         return $this;
     }
 
@@ -302,7 +337,6 @@ class Watershed {
 
         $aggregationType;
         $property;
-        $match = NULL;
 
         $measureNameLC = strtolower($measureName);
         $measureNameArr = explode(" ", $measureNameLC);
@@ -325,7 +359,7 @@ class Watershed {
             $property = $propertyMap[$measureNameArr[1]];
             $match = NULL;
         }
-       
+
         return $this->buildMeasure($measureTitle, $aggregationType, $property, $match);
     }
 
@@ -635,7 +669,9 @@ class Watershed {
         @return {Integer} [cardId] Id of the card created.
     */
     public function createCard($configuration, $template, $title, $description, $summary, $orgId) {
-
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
         $response = $this->sendRequest("POST", "cards", array(
                 "content" => json_encode(
                     array (
@@ -656,7 +692,7 @@ class Watershed {
 
         $success = FALSE;
         if ($response["status"] === 201) {
-            $success = TRUE ;
+            $success = TRUE;
         }
 
         $return = array (
@@ -678,6 +714,46 @@ class Watershed {
     }
 
     /*
+    @method createCard Calls the API to create a card within a group 
+    @param {Array} [$configuration] Card configuration "object" (do not JSON encode!).
+    @param {String} [$template] name of card template to use e.g. "leaderboard" or "Activity Detail".
+    @param {String} [$title] Title of the card.
+    @param {String} [$description] Decsription of the card.
+    @param {String} [$summary] Summary text for the card.
+    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {String} [$groupId] Id of the group to create the card in.
+    @return {Array} Details of the result of the request.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 201.
+        @return {Integer} [cardId] Id of the card created.
+    */
+    public function createCardInGroup($configuration, $template, $title, $description, $summary, $orgId, $groupId = null, $groupName = null, $groupIsDashboard = false) {
+        $groupName;
+        if ($groupId == null) {
+            $groupId = $this->dashboardId;
+            $groupName = $this->dashboard;
+        }
+
+        // Create card
+        $response = $this->createCard($configuration, $template, $title, $description, $summary, $orgId);
+        if ($response["success"] == FALSE) {
+            $response["method"] = "createCard";
+            return $response;
+        }
+
+        $cardId = $response["cardId"];
+
+        // Put card in group
+        $response = $this->AddCardsToGroup([$cardId], $groupName, $orgId, $groupIsDashboard);
+
+        $return = $response;
+        $return["cardId"]  = $cardId;
+
+        return $return;
+    }
+
+    /*
     @method deleteCard Calls the API to delete a card. 
     @param {String} [$id] Id of the card to delete. 
     @param {String} [$orgId] Id of the organization to delete the card on.
@@ -687,6 +763,9 @@ class Watershed {
         @return {Integer} [status] HTTP status code of the response e.g. 201
     */
     public function deleteCard($id, $orgId) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
 
         $response = $this->sendRequest("DELETE", "cards/{$id}", array());
 
@@ -708,7 +787,9 @@ class Watershed {
     @method createSkillCard Calls the API to create a skill, then create a card for that skill
     @param {String} [$activityName] xAPI activity name to use in the skill.
     @param {String} [$xAPIActivityId] xAPI activity id to use in the skill.
-    @param {String} [$orgId] Id of the organization to create the skill and card on.
+    @param {Integer} [$orgId] Id of the organization to create the skill and card on.
+    @param {Integer} [$groupId] Id of the group to create the card in.
+    @param {String} [$groupName] Name of the group to create the card in.
     @return {Array} Details of the result of the request.
         @return {Boolean} [success] Was the request was a success? 
         @return {String} [content] Raw content of the response.
@@ -716,7 +797,7 @@ class Watershed {
         @return {Integer} [cardId] Id of the card created.
         @return {Integer} [skillId] Id of the skill created. 
     */
-    public function createSkillCard($activityName, $xAPIActivityId, $orgId) {
+    public function createSkillCard($activityName, $xAPIActivityId, $orgId, $groupId = null, $groupName = null) {
         $response = $this->createSkill($activityName, $xAPIActivityId, $orgId);
         if ($response["success"]) {
             $skillId = $response["skillId"];
@@ -727,13 +808,15 @@ class Watershed {
                 )
             );
 
-            $response = $this->createCard(
+            $response = $this->createCardInGroup(
                 $configuration, 
                 "skills", 
                 "Practicing {$activityName}", 
                 "The Skills report card tells you how often learners practice.", 
                 "The Skills report card tells you how often learners practice.", 
-                $orgId
+                $orgId,
+                $groupId, 
+                $groupName
             );
 
             $response["skillId"] = $skillId;
@@ -747,14 +830,16 @@ class Watershed {
     Uses regex to filter all activity ids starting with the activity id provided. 
     @param {String} [$activityName] xAPI activity name 
     @param {String} [$xAPIActivityId] xAPI activity id (or start of activity id)
-    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Integer} [$orgId] Id of the organization to create the skill and card on.
+    @param {Integer} [$groupId] Id of the group to create the card in.
+    @param {String} [$groupName] Name of the group to create the card in.
     @return {Array} Details of the result of the request.
         @return {Boolean} [success] Was the request was a success? 
         @return {String} [content] Raw content of the response.
         @return {Integer} [status] HTTP status code of the response e.g. 201.
         @return {Integer} [cardId] Id of the card created. 
     */
-    public function createActivityStreamCard($activityName, $xAPIActivityId, $orgId) {
+    public function createActivityStreamCard($activityName, $xAPIActivityId, $orgId, $groupId = null, $groupName = null) {
         $configuration = array(
             "filter" => array(
                 "activityIds" => array (
@@ -764,13 +849,14 @@ class Watershed {
             )
         );
 
-        $response = $this->createCard(
+        $response = $this->createCardInGroup(
             $configuration, 
             "activity stream", 
             "{$activityName} Activity", 
             "The Activity Stream report card tells you what's happening now.", 
             "The Activity Stream report card tells you what's happening now.", 
-            $orgId
+            $orgId,
+            $groupId
         );
 
         return $response;
@@ -780,14 +866,16 @@ class Watershed {
     @method createActivityDetailCard Calls the API to create an activity detail card for a given activity id.
     @param {String} [$activityName] xAPI activity name 
     @param {String} [$xAPIActivityId] xAPI activity id
-    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Integer} [$orgId] Id of the organization to create the skill and card on.
+    @param {Integer} [$groupId] Id of the group to create the card in.
+    @param {String} [$groupName] Name of the group to create the card in.
     @return {Array} Details of the result of the request.
         @return {Boolean} [success] Was the request was a success? 
         @return {String} [content] Raw content of the response.
         @return {Integer} [status] HTTP status code of the response e.g. 201.
         @return {Integer} [cardId] Id of the card created. 
     */
-    public function createActivityDetailCard($activityName, $xAPIActivityId, $orgId) {
+    public function createActivityDetailCard($activityName, $xAPIActivityId, $orgId, $groupId = null, $groupName = null) {
         $configuration = array(
             "filter" => array(
                 "activityIds" => array (
@@ -797,13 +885,15 @@ class Watershed {
             )
         );
 
-        $response = $this->createCard(
+        $response = $this->createCardInGroup(
             $configuration, 
             "activity detail", 
             "{$activityName} Detail", 
             "The Activity Detail report card enables you to explore an activity in detail.", 
             "The Activity Detail report card enables you to explore an activity in detail.", 
-            $orgId
+            $orgId,
+            $groupId,
+            $groupName
         );
 
         return $response;
@@ -816,7 +906,9 @@ class Watershed {
     @param {Array} [$dimensionName] xAPI activity name 
     @param {String} [$activityName] xAPI activity name 
     @param {String} [$xAPIActivityId] xAPI activity id
-    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Integer} [$orgId] Id of the organization to create the skill and card on.
+    @param {Integer} [$groupId] Id of the group to create the card in.
+    @param {String} [$groupName] Name of the group to create the card in.
     @param {Array} [$filter] Filter to use in place of default
     @return {Array} Details of the result of the request.
         @return {Boolean} [success] Was the request was a success? 
@@ -824,7 +916,7 @@ class Watershed {
         @return {Integer} [status] HTTP status code of the response e.g. 201.
         @return {Integer} [cardId] Id of the card created. 
     */
-    public function createLeaderBoardCard($measureList, $dimensionName, $activityName, $xAPIActivityId, $orgId, $filter = null) {
+    public function createLeaderBoardCard($measureList, $dimensionName, $activityName, $xAPIActivityId, $orgId, $groupId = null, $groupName = null, $filter = null) {
         $measureNames = array();
         $measures = array();
         foreach ($measureList as $measureItem) {
@@ -861,13 +953,15 @@ class Watershed {
         $description .= $this->buildListString($measureNames);
         $description .= " of each {$dimensionName}.";
 
-        $response = $this->createCard(
+        $response = $this->createCardInGroup(
             $configuration, 
             "leaderboard", 
             "{$activityName} Leaderboard", 
             $description, 
             $description, 
-            $orgId
+            $orgId,
+            $groupId,
+            $groupName
         );
         return $response;
     }
@@ -879,7 +973,9 @@ class Watershed {
     @param {Array} [$dimensionName] xAPI activity name 
     @param {String} [$activityName] xAPI activity name 
     @param {String} [$xAPIActivityId] xAPI activity id
-    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Integer} [$orgId] Id of the organization to create the skill and card on.
+    @param {Integer} [$groupId] Id of the group to create the card in.
+    @param {String} [$groupName] Name of the group to create the card in.
     @param {Array} [$filter] Filter to use in place of default
     @param {Bool} [$singleGraph] Present all measures on a single chart. Default true. 
     @param {Bool} [$vertical] Arrange the bar chart vertically. Default true. 
@@ -889,7 +985,7 @@ class Watershed {
         @return {Integer} [status] HTTP status code of the response e.g. 201.
         @return {Integer} [cardId] Id of the card created. 
     */
-    public function createBarchartCard($measureList, $dimensionName, $activityName, $xAPIActivityId, $orgId, $filter = null, $singleGraph = true, $vertical = true) {
+    public function createBarchartCard($measureList, $dimensionName, $activityName, $xAPIActivityId, $orgId, $groupId = null, $groupName = null, $filter = null, $singleGraph = true, $vertical = true) {
         $measureNames = array();
         $measures = array();
         foreach ($measureList as $measureItem) {
@@ -928,13 +1024,15 @@ class Watershed {
         $description .= $this->buildListString($measureNames);
         $description .= " of each {$dimensionName}.";
 
-        $response = $this->createCard(
+        $response = $this->createCardInGroup(
             $configuration, 
             "barchart", 
             "{$activityName} Barchart", 
             $description, 
             $description, 
-            $orgId
+            $orgId,
+            $groupId,
+            $groupName
         );
         return $response;
     }
@@ -947,7 +1045,9 @@ class Watershed {
     @param {Array} [$dimensionName] xAPI activity name 
     @param {String} [$activityName] xAPI activity name 
     @param {String} [$xAPIActivityId] xAPI activity id
-    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Integer} [$orgId] Id of the organization to create the skill and card on.
+    @param {Integer} [$groupId] Id of the group to create the card in.
+    @param {String} [$groupName] Name of the group to create the card in.
     @param {Array} [$filter] Filter to use in place of default
     @param {Bool} [$singleGraph] Present all measures on a single chart. Default true. 
     @param {Bool} [$line] Use a single line instead of an area effect. Default true. 
@@ -957,7 +1057,7 @@ class Watershed {
         @return {Integer} [status] HTTP status code of the response e.g. 201.
         @return {Integer} [cardId] Id of the card created. 
     */
-    public function createLinechartCard($measureList, $dimensionName, $activityName, $xAPIActivityId, $orgId, $filter = null, $singleGraph = true, $line = true) {
+    public function createLinechartCard($measureList, $dimensionName, $activityName, $xAPIActivityId, $orgId, $groupId = null, $groupName = null, $filter = null, $singleGraph = true, $line = true) {
         $measureNames = array();
         $measures = array();
         foreach ($measureList as $measureItem) {
@@ -996,13 +1096,15 @@ class Watershed {
         $description .= $this->buildListString($measureNames);
         $description .= " of each {$dimensionName}.";
 
-        $response = $this->createCard(
+        $response = $this->createCardInGroup(
             $configuration, 
             "linechart", 
             "{$activityName} Linechart", 
             $description, 
             $description, 
-            $orgId
+            $orgId,
+            $groupId,
+            $groupName
         );
         return $response;
     }
@@ -1014,14 +1116,16 @@ class Watershed {
     @param {Array} [$dimensionName] xAPI activity name 
     @param {String} [$activityName] xAPI activity name 
     @param {String} [$xAPIActivityId] xAPI activity id
-    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Integer} [$orgId] Id of the organization to create the skill and card on.
+    @param {Integer} [$groupId] Id of the group to create the card in.
+    @param {String} [$groupName] Name of the group to create the card in.
     @return {Array} Details of the result of the request.
         @return {Boolean} [success] Was the request was a success? 
         @return {String} [content] Raw content of the response.
         @return {Integer} [status] HTTP status code of the response e.g. 201.
         @return {Integer} [cardId] Id of the card created. 
     */
-    public function createCorrelationCard($measureList, $dimensionName, $activityName, $xAPIActivityId, $orgId) {
+    public function createCorrelationCard($measureList, $dimensionName, $activityName, $xAPIActivityId, $orgId, $groupId = null, $groupName = null) {
         $measureNames = array();
         $measures = array();
         foreach ($measureList as $measureItem) {
@@ -1054,13 +1158,15 @@ class Watershed {
         $description .= $this->buildListString($measureNames);
         $description .= " of each {$dimensionName}.";
 
-        $response = $this->createCard(
+        $response = $this->createCardInGroup(
             $configuration, 
             "correlation", 
             "{$activityName} Correlation", 
             $description, 
             $description, 
-            $orgId
+            $orgId,
+            $groupId,
+            $groupName
         );
         return $response;
     }
@@ -1071,16 +1177,19 @@ class Watershed {
     @param {String} [$orgId] Id of the organization to create the card on.
     @param {String} [$cardGroupName] Unqiue name of the card group.
     @param {String} [$cardGroupTitle] Display title of the card group.
-    @param {String} [$parentGroupName] Name of the card group the cards are currently in, if not ws-activity.
-        New cards created by an admin or owner account are added to ws-activity by default. 
+    @param {String} [$parentGroupName] Name of the card group the cards are currently in, if not the default.
+        New cards created by an admin or owner account need to be added to a group after creation. 
     @return {Array} Details of the result of the series of requests.
         @return {Boolean} [success] Was the request was a success? 
         @return {Integer} [groupId] Id of the group created. 
         @return {Integer} [cardId] Id of the card created. 
     */
     public function groupCards($cardIds, $orgId, $cardGroupName, $cardGroupTitle, $parentGroupName = NULL) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
         if ($parentGroupName == NULL) {
-            $parentGroupName = "ws-activity";
+            $parentGroupName = $this->dashboard;
         }
 
         $parentGroupId;
@@ -1095,51 +1204,14 @@ class Watershed {
             $parentGroupId = $response["groupId"];
             $startingCards = $response["cardIds"];
         }
-        else if ($response["status"] == 404 && $response["content"] == '{"count":0,"results":[]}') {
-            //parent group does not exist, create it
-            $response = $this->createCardGroup($cardGroupName, $cardIds, $orgId);
-            if ($response["success"]) {
-                $parentGroupId = $response["groupId"];
-                $startingCards = [];
-            }
-            else {
-                $response["method"] = "createCardGroup-parent";
-                return $response;
-            }
-        }
         else {
             $response["method"] = "getCardGroup";
             return $response;
         }
 
-        //create card group
-        $response = $this->createCardGroup($cardGroupName, $cardIds, $orgId);
-        if ($response["success"]) {
-            $groupId = $response["groupId"];
-        }
-        else {
-            $response["method"] = "createCardGroup";
-            return $response;
-        }
-
-        //create group card to display cards
-        $response = $this->createCard(
-            array (
-                "cardGroupId"=> $groupId
-            ), 
-            "group", 
-            $cardGroupTitle, 
-            NULL, 
-            NULL, 
-            $orgId
-        );
-        if ($response["success"]) {
-            $cardId = $response["cardId"];
-        }
-        else {
-            $response["method"] = "createCard";
-            return $response;
-        }
+        $response = createCardGroup($cardIds, $orgId, $cardGroupName, $cardGroupTitle, $parentGroupId);
+        $groupId = $response['groupId'];
+        $cardId = $response['cardId'];
 
         //hide grouped cards from parent group
         $response = $this->hideGroupedCards($startingCards, $cardIds, $cardId, $parentGroupId, $parentGroupName, $orgId);
@@ -1156,6 +1228,67 @@ class Watershed {
         );
     }
 
+     /*
+    @method createCardGroupAndCard creates an empty card group and a card for that group
+    @param {Array} [$cardIds] List of integer card ids. Can be an empty array.
+    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {String} [$cardGroupName] Unqiue name of the card group.
+    @param {String} [$cardGroupTitle] Display title of the card group.
+    @param {String} [$parentGroupId] Where to create the group card (id)
+    @param {String} [$parentGroupName] Where to create the group card (name)
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {Integer} [groupId] Id of the group created. 
+        @return {Integer} [cardId] Id of the card created. 
+    */
+    public function createCardGroupAndCard($cardIds, $orgId, $cardGroupName, $cardGroupTitle, $parentGroupId = null, $parentGroupName = null) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+        $cardId;
+        $groupId;
+
+        //create card group
+        $response = $this->createCardGroup($cardGroupName, $cardIds, $orgId);
+        if ($response["success"]) {
+            $groupId = $response["groupId"];
+        }
+        else {
+            $response["method"] = "createCardGroup";
+            return $response;
+        }
+
+        //create group card to display cards
+        $response = $this->createCardInGroup(
+            array (
+                "cardGroupId"=> $groupId
+            ), 
+            "group", 
+            $cardGroupTitle, 
+            NULL, 
+            NULL, 
+            $orgId,
+            $parentGroupId,
+            $parentGroupName,
+            true
+        );
+        if ($response["success"]) {
+            $cardId = $response["cardId"];
+        }
+        else {
+            $response["method"] = "createCard";
+            return $response;
+        }
+
+        //return group id and card id
+        return array (
+            "success" => TRUE,
+            "groupId" => $groupId,
+            "groupName" => $cardGroupName,
+            "cardId" => $cardId
+        );
+    }
+
     /*
     @method getCardGroup Fetches a card group, if it exists. 
     @param {String} [$orgId] Id of the organization to create the card on.
@@ -1168,6 +1301,9 @@ class Watershed {
         @return {Array} [cardIds] Ids of the cards in the group.
     */
     public function getCardGroup($orgId, $cardGroupName) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
         $response = $this->sendRequest(
             "GET", 
             "organizations/{$orgId}/card-groups/?name={$cardGroupName}"
@@ -1185,6 +1321,7 @@ class Watershed {
             if ($content->count > 0) {
                 $return["success"] = TRUE;
                 $return["groupId"] = $content->results[0]->id;
+                $return["groupName"] = $content->results[0]->name;
                 $return["cardIds"] = $content->results[0]->cardIds;
             }
             else {
@@ -1208,6 +1345,9 @@ class Watershed {
         @return {Integer} [status] HTTP status code of the response e.g. 404 if group does not exist
     */
     public function deleteCardGroup($orgId, $cardGroupId) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
         $response = $this->sendRequest(
             "DELETE", 
             "card-groups/{$cardGroupId}"
@@ -1239,6 +1379,9 @@ class Watershed {
         @return {Integer} [groupId] Id of the group created. 
     */
     public function createCardGroup ($cardGroupName, $cardIds, $orgId) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
         $response = $this->sendRequest(
             "POST", 
             "card-groups", 
@@ -1296,6 +1439,9 @@ class Watershed {
         @return {Integer} [status] HTTP status code of the response e.g. 201.
     */
     public function hideGroupedCards ($startingCards, $groupedCards, $groupCardId, $parentGroupId, $parentGroupName, $orgId){
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
         $newCards = array_values(array_diff($startingCards, $groupedCards));
 
         if (!is_null($groupCardId)) {
@@ -1330,7 +1476,7 @@ class Watershed {
         );
     }
 
-        /*
+    /*
     @method moveCardsGroup removes a set of cards from one group and adds them to another.
     @param {Array} [$cardIds] List of integer card ids. 
         Those cards which are to be moved. 
@@ -1343,8 +1489,49 @@ class Watershed {
         @return {Integer} [status] HTTP status code of the response e.g. 201.
     */
     public function moveCardsGroup ($cardIds, $newGroupName, $oldGroupName, $orgId){
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+
+        // remove cards from the old group
+        $response = $this->removeCardsFromGroup ($cardIds, $oldGroupName, $orgId);
+
+        if ($response['success'] === FALSE) {
+            return $response;
+        }
+
+        // add cards to the new group
+        $response = $this->AddCardsToGroup ($cardIds, $newGroupName, $orgId);
+
+        $success = FALSE;
+        if ($response["status"] === 204) {
+            $success = TRUE ;
+        }
+
+        return array (
+            "success" => $success, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+    }
+
+    /*
+    @method removeCardsFromGroup removes a set of cards from one group and adds them to another.
+    @param {Array} [$cardIds] List of integer card ids. 
+        Those cards which are to be moved. 
+    @param {String} [$oldGroupName] Name of the card group to move the cards from.
+    @param {String} [$orgId] Id of the organization the group exists in.
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 204.
+    */
+    public function removeCardsFromGroup ($cardIds, $oldGroupName, $orgId){
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
         if ($oldGroupName == null) {
-            $oldGroupName = "ws-activity";
+            $oldGroupName = $this->dashboardId;
         }
 
         // remove cards from the old group
@@ -1362,9 +1549,36 @@ class Watershed {
             return $response;
         }
 
+        $success = FALSE;
+        if ($response["status"] === 204) {
+            $success = TRUE ;
+        }
+
+        return array (
+            "success" => $success, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+    }
+
+    /*
+    @method AddCardsToGroup add a set of cards to a group identified by name.
+    @param {Array} [$cardIds] List of integer card ids. 
+        Those cards which are to be moved. 
+    @param {String} [$newGroupName] Name of the card group to move the cards to.
+    @param {String} [$orgId] Id of the organization the group exists in.
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 201.
+    */
+    public function AddCardsToGroup ($cardIds, $newGroupName, $orgId, $groupIsDashboard = false){
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
         // add cards to the new group
         $newGroup = $this->getCardGroup($orgId, $newGroupName);
-        
+
         if ($newGroup['success'] === FALSE) {
             $newGroup['method'] = 'getCardGroup';
             return $newGroup;
@@ -1372,18 +1586,24 @@ class Watershed {
 
         $newCards = array_merge($newGroup['cardIds'], $cardIds);
 
+        $content = array(
+            "name" => $newGroupName,
+            "cardIds" => $newCards,
+            "organization" => array (
+                "id" => $orgId
+            )
+        );
+
+        if ($groupIsDashboard == true) {
+            $content["dashboard"] = true;
+        }
+
         $response = $this->sendRequest(
             "PUT", 
-            "card-groups/".$newGroup['groupId'], 
+            "card-groups/".$newGroup["groupId"], 
             array (
                 "content" => json_encode(
-                    array(
-                        "name" => $newGroupName,
-                        "cardIds" => $newCards,
-                        "organization" => array (
-                            "id" => $orgId
-                        )
-                    )
+                    $content
                 )
             )
         );
@@ -1413,6 +1633,9 @@ class Watershed {
         @return {Array} [personas] List of personas belonging to the persona
     */
     public function getPersonByPersona($orgId, $persona) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
         $response = $this->sendRequest(
             "GET", 
             'organizations/'.$orgId.'/people/with-persona?persona='.urlencode(json_encode($persona))
@@ -1446,6 +1669,9 @@ class Watershed {
         @return {Integer} [personId] Person's id
     */
     public function createPerson($orgId, $person) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
         $response = $this->sendRequest(
             "POST", 
             'organizations/'.$orgId.'/people/',
@@ -1480,6 +1706,9 @@ class Watershed {
         @return {Integer} [status] HTTP status code of the response e.g. 404 if group does not exist
     */
     public function updatePerson($orgId, $personId, $person) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
         $response = $this->sendRequest(
             "PUT", 
             'organizations/'.$orgId.'/people/'.$personId,
