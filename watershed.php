@@ -1336,6 +1336,52 @@ class Watershed {
     }
 
     /*
+    @method getCardGroupById Fetches a card group, if it exists. 
+    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {Integer} [$cardGroupId] Unqiue id of the card group.
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? (false if group does not exist)
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 404 if group does not exist
+        @return {Integer} [groupId] Id of the group found. 
+        @return {Array} [cardIds] Ids of the cards in the group.
+    */
+    public function getCardGroupById($orgId, $cardGroupId) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+        $response = $this->sendRequest(
+            "GET", 
+            "organizations/{$orgId}/card-groups/?id={$cardGroupId}"
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $content = json_decode($response["content"]);
+
+            if ($content->count > 0) {
+                $return["success"] = TRUE;
+                $return["groupId"] = $content->results[0]->id;
+                $return["groupName"] = $content->results[0]->name;
+                $return["cardIds"] = $content->results[0]->cardIds;
+            }
+            else {
+                // No result
+                $return["status"] = 404;
+            }
+
+        }
+
+        return $return;
+
+    }
+
+    /*
     @method deleteCardGroup Deletes a card group,. 
     @param {String} [$orgId] Id of the organization to create the card on.
     @param {Integer} [$cardGroupId] Unqiue id of the card group.
