@@ -332,7 +332,8 @@ class Watershed {
             "activity" => "object.id",
             "verb" => "verb.id",
             "completion" => "result.completion",
-            "success" => "result.success"
+            "success" => "result.success",
+            "person" => "actor.person.id"
         );
 
         $aggregationType;
@@ -733,6 +734,7 @@ class Watershed {
         if ($groupId == null) {
             $groupId = $this->dashboardId;
             $groupName = $this->dashboard;
+            $groupIsDashboard = true;
         }
 
         // Create card
@@ -1770,10 +1772,48 @@ class Watershed {
         );
 
         if ($response["status"] === 204) {
-            $content = json_decode($response["content"]);
             $return["success"] = TRUE;
         }
 
         return $return;
     }
+
+    public function getCardData($orgId, $cardId, $cardType, $requireCached) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+
+        $path = 'organizations/'.$orgId.'/cartridges/builtin/'.$cardType.'/data';
+        $queryString = "order_by=-agg:0:value&cardId=".$cardId."&requireCached=".$requireCached;
+
+        $response = $this->sendRequest(
+            "GET", 
+            $path.'?'.$queryString,
+            array ()
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $return["success"] = TRUE;
+            $content = explode("event: ", $response["content"]);
+            array_shift($content);
+            foreach ($content as $index => $event) {
+                $eventArr = explode("data: ", $event);
+                $content[$index] = [
+                    "event" => trim(preg_replace('/\s\s+/', ' ', $eventArr[0])),
+                    "data" => json_decode($eventArr[1])
+                ];
+            }
+            // Normally the "result" event is at the end; put it at the start. 
+            $return["content"] = array_reverse($content);
+        }
+
+        return $return;
+    }
+
 }
