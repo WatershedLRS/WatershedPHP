@@ -615,7 +615,7 @@ class Watershed {
     }
 
     /*
-    @method getCard Fetches a card group, if it exists. 
+    @method getCard Fetches a card, if it exists. 
     @param {String} [$orgId] Id of the organization to create the card on.
     @param {String} [$cardId] Id of the card.
     @return {Array} Details of the result of the series of requests.
@@ -757,6 +757,36 @@ class Watershed {
 
     /*
     @method deleteCard Calls the API to delete a card. 
+    @param {String} [$cardId] Id of the card to delete. 
+    @param {String} [$orgId] Id of the organization to delete the card on.
+    @return {Array} Details of the result of the request
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response
+        @return {Integer} [status] HTTP status code of the response e.g. 201
+    */
+    public function deleteCard($cardId, $orgId) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+
+        $response = $this->sendRequest("DELETE", "cards/{$cardId}", array());
+
+        $success = FALSE;
+        if ($response["status"] === 200) {
+            $success = TRUE ;
+        }
+
+        $return = array (
+            "success" => $success, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        return $return;
+    }
+
+    /*
+    @method updateCardConfig Calls the API to update a card's config. 
     @param {String} [$id] Id of the card to delete. 
     @param {String} [$orgId] Id of the organization to delete the card on.
     @return {Array} Details of the result of the request
@@ -764,12 +794,26 @@ class Watershed {
         @return {String} [content] Raw content of the response
         @return {Integer} [status] HTTP status code of the response e.g. 201
     */
-    public function deleteCard($id, $orgId) {
+    public function updateCardConfig($cardId, $newConfig, $orgId) {
         if ($orgId == null) {
             $orgId = $this->orgId;
         }
 
-        $response = $this->sendRequest("DELETE", "cards/{$id}", array());
+        $response = $this->getCard($orgId, $cardId);
+        $content = null;
+        if ($response["status"] === 200) {
+            $content = json_decode($response["content"], true)["results"][0];
+        }
+        else {
+            return $response;
+        }
+
+        $content["configuration"] = $this->array_merge_recursive_distinct($content["configuration"],$newConfig);
+
+        $response = $this->sendRequest("PUT", "cards/{$cardId}", array(
+                "content" => json_encode($content)
+            )
+        );
 
         $success = FALSE;
         if ($response["status"] === 200) {
@@ -1814,6 +1858,26 @@ class Watershed {
         }
 
         return $return;
+    }
+
+    // http://php.net/manual/en/function.array-merge-recursive.php#92195
+    protected function array_merge_recursive_distinct( array &$array1, array &$array2)
+    {
+      $merged = $array1;
+
+      foreach ( $array2 as $key => &$value )
+      {
+        if ( is_array ( $value ) && isset ( $merged [$key] ) && is_array ( $merged [$key] ) )
+        {
+          $merged [$key] = $this->array_merge_recursive_distinct ( $merged [$key], $value );
+        }
+        else
+        {
+          $merged [$key] = $value;
+        }
+      }
+
+      return $merged;
     }
 
 }
