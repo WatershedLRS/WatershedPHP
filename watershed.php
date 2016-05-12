@@ -1788,8 +1788,10 @@ class Watershed {
             $orgId = $this->orgId;
         }
 
+        $requireCachedStr = ($requireCached) ? 'true' : 'false';
+
         $path = 'organizations/'.$orgId.'/cartridges/builtin/'.$cardType.'/data';
-        $queryString = "order_by=-agg:0:value&cardId=".$cardId."&requireCached=".$requireCached;
+        $queryString = "order_by=-agg:0:value&cardId=".$cardId."&requireCached=".$requireCachedStr;
 
         $response = $this->sendRequest(
             "GET", 
@@ -1805,20 +1807,27 @@ class Watershed {
 
         if ($response["status"] === 200) {
             $return["success"] = TRUE;
-            $content = explode("event: ", $response["content"]);
-            array_shift($content);
-            foreach ($content as $index => $event) {
-                $eventArr = explode("data: ", $event);
-                $content[$index] = [
-                    "event" => trim(preg_replace('/\s\s+/', ' ', $eventArr[0])),
-                    "data" => json_decode($eventArr[1])
-                ];
-            }
-            // Normally the "result" event is at the end; put it at the start. 
-            $return["content"] = array_reverse($content);
+            $return["content"] = $this->processCardDataContent($requireCached, $response["content"]);
         }
 
         return $return;
+    }
+
+    public function processCardDataContent($cached, $rawContent){
+        if ($cached) {
+            return json_decode($rawContent);
+        }
+        else {
+            $content = explode("event: ", $rawContent);
+            array_shift($content); 
+            foreach ($content as $index => $event) {
+                $eventArr = explode("data: ", $event);
+                if (trim(preg_replace('/\s\s+/', ' ', $eventArr[0])) == "results") {
+                    return json_decode($eventArr[1]);
+                }
+            }
+        }
+        return null;
     }
 
     /*
