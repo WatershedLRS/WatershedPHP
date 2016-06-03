@@ -1790,7 +1790,7 @@ class Watershed {
 
         $requireCachedStr = ($requireCached) ? 'true' : 'false';
 
-        $path = 'organizations/'.$orgId.'/cartridges/builtin/'.$cardType.'/data';
+        $path = 'organizations/'.$orgId.'/'.$cardType.'/data';
         $queryString = "order_by=-agg:0:value&cardId=".$cardId."&requireCached=".$requireCachedStr;
 
         $response = $this->sendRequest(
