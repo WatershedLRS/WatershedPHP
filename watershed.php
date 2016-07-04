@@ -1832,7 +1832,7 @@ class Watershed {
 
     /*
     @method getPersonByPersona Fetches a person by persona, if it exists. 
-    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {String} [$orgId] Id of the organization.
     @param {Object} [$persona] Persona object.
     @return {Array} Details of the result of the series of requests.
         @return {Boolean} [success] Was the request was a success? (false if group does not exist)
@@ -1870,7 +1870,7 @@ class Watershed {
 
     /*
     @method createPerson Creates a person 
-    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {String} [$orgId] Id of the organization.
     @param {Object} [$person] Person object.
     @return {Array} Details of the result of the series of requests.
         @return {Boolean} [success] Was the request was a success? (false if group does not exist)
@@ -1907,7 +1907,7 @@ class Watershed {
 
     /*
     @method updatePerson Creates a person 
-    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {String} [$orgId] Id of the organization.
     @param {Object} [$person] Person object.
     @param {Integer} [personId] Person's id
     @return {Array} Details of the result of the series of requests.
@@ -1942,7 +1942,7 @@ class Watershed {
 
     /*
     @method createPerson Creates a person 
-    @param {String} [$orgId] Id of the organization to create the card on.
+    @param {String} [$orgId] Id of the organization
     @param {Object} [$permission] Permission object.
     @return {Array} Details of the result of the series of requests.
         @return {Boolean} [success] Was the request was a success? (false if group does not exist)
@@ -1972,6 +1972,230 @@ class Watershed {
             $return["success"] = TRUE;
         }
 
+        return $return;
+    }
+
+    /*
+    @method getGroupTypes Fetches a list of all Group Types in an org.
+    @param {String} [$orgId] Id of the organization to search.
+    @param {String} [$name] Partial name to search for. 
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response
+        @return {Array} [groupTypes] List of group types
+    */
+    public function getGroupTypes($orgId, $name) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+        $namestr = "";
+        if (!is_null($name)) {
+           $namestr = '?in_name='.$name;
+        }
+
+        $response = $this->sendRequest(
+            "GET", 
+            'organizations/'.$orgId.'/group-types'.$namestr
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $content = json_decode($response["content"]);
+            $return["success"] = TRUE;
+            $return["groupTypes"] = $content->results;
+        }
+        return $return;
+    }
+
+    /*
+    @method deleteGroupType Deletes a Group Type. 
+    @param {String} [$orgId] Id of the organization to search.
+    @param {Int} [$groupTypeId] Id of the group type to delete
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response
+    */
+    public function deleteGroupType($orgId, $groupTypeId) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+        $response = $this->sendRequest(
+            'DELETE', 
+            'organizations/'.$orgId.'/group-types/'.$groupTypeId
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 204) {
+            $return["success"] = TRUE;
+        }
+        return $return;
+    }
+
+    /*
+    @method createGroupType Creates a Group Type. 
+    @param {String} [$orgId] Id of the organization to search.
+    @param {string} [$name] The display name of the Group Type
+    @param {string} [$plural] The plural display name of the Group Type
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response
+    */
+    public function createGroupType($orgId, $name, $plural) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+        if ($plural == null) {
+            $plural = $name.'s';
+        }
+
+        $content = array(
+            'name' => $name,
+            'pluralName' => $plural
+        );
+
+        $opts = array(
+            'content' => json_encode($content)
+        );
+
+        $response = $this->sendRequest(
+            'POST', 
+            'organizations/'.$orgId.'/group-types/',
+            $opts
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $return["success"] = TRUE;
+        }
+        return $return;
+    }
+
+    /*
+    @method getGroups Fetches a list of all Group in an org.
+    @param {String} [$orgId] Id of the organization to search.
+    @param {String} [$customId] Partial customId to search for. 
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response
+        @return {Array} [groupTypes] List of group types
+    */
+    public function getGroups($orgId, $customId) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+        $customIdStr = "";
+        if (!is_null($customId)) {
+           $customIdStr = '?in_customId='.$customId;
+        }
+
+        $response = $this->sendRequest(
+            "GET", 
+            'organizations/'.$orgId.'/groups'.$customIdStr
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $content = json_decode($response["content"]);
+            $return["success"] = TRUE;
+            $return["groups"] = $content->results;
+        }
+        return $return;
+    }
+
+    /*
+    @method createGroup Creates a Group. 
+    @param {String} [$orgId] Id of the organization to search.
+    @param {Obj} [$group] Group to create
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response
+    */
+    public function createGroup($orgId, $group) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+
+        $opts = array(
+            'content' => json_encode($group)
+        );
+
+        $response = $this->sendRequest(
+            'POST', 
+            'organizations/'.$orgId.'/groups/',
+            $opts
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $return["success"] = TRUE;
+        }
+        return $return;
+    }
+
+    /*
+    @method updateGroup Updates a Group. 
+    @param {String} [$orgId] Id of the organization to search.
+    @param {Int} [$groupId] Id of the organization to search.
+    @param {Obj} [$group] Group to create
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response
+    */
+    public function updateGroup($orgId, $groupId, $group) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+
+        $opts = array(
+            'content' => json_encode($group)
+        );
+
+        $response = $this->sendRequest(
+            'PUT', 
+            'organizations/'.$orgId.'/groups/'.$groupId,
+            $opts
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $return["success"] = TRUE;
+        }
         return $return;
     }
 
