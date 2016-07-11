@@ -2199,6 +2199,55 @@ class Watershed {
         return $return;
     }
 
+    /*
+    @method setMeasures sets the measures for an org
+    @param {String} [$orgId] Id of the organization .
+    @param {Array} [$measures] measures to set
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response
+    */
+    public function setMeasures($orgId, $measures) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+
+        $response;
+
+        foreach ($measures as $measure) {
+            $config = (object)[
+                'name' => $measure->name,
+                'config' => json_encode($measure)
+            ];
+
+            $opts = array(
+            'content' => json_encode($config)
+            );
+            
+            $response = $this->sendRequest(
+                'POST', 
+                'organizations/'.$orgId.'/measures/',
+                $opts
+            );
+
+            if ($response["status"] !== 201) {
+                break;
+            }
+        }
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 201) {
+            $return["success"] = TRUE;
+        }
+        return $return;
+    }
+
     // http://php.net/manual/en/function.array-merge-recursive.php#92195
     protected function array_merge_recursive_distinct( array &$array1, array &$array2)
     {
