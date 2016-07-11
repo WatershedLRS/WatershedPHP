@@ -2248,6 +2248,73 @@ class Watershed {
         return $return;
     }
 
+    /*
+    @method getMeasures gets the measures for an org
+    @param {String} [$orgId] Id of the organization .
+    @param {Array} [$measures] measures to set
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Array} [measures] fetched measures.
+        @return {Integer} [status] HTTP status code of the response
+    */
+    public function getMeasures($orgId) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+
+        $response = $this->sendRequest(
+            'GET', 
+            'organizations/'.$orgId.'/measures/',
+            null
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $return["success"] = TRUE;
+            $content = json_decode($response["content"]);
+            $return["measures"] = $content->results;
+        }
+        return $return;
+    }
+
+    /*
+    @method deleteMeasure deletes a measure
+    @param {String} [$orgId] Id of the organization .
+    @param {Array} [$measures] measures to set
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response
+    */
+    public function deleteMeasure($orgId, $measureId) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+
+        $response = $this->sendRequest(
+            'DELETE', 
+            'organizations/'.$orgId.'/measures/'.$measureId,
+            null
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $return["success"] = TRUE;
+        }
+        return $return;
+    }
+
     // http://php.net/manual/en/function.array-merge-recursive.php#92195
     protected function array_merge_recursive_distinct( array &$array1, array &$array2)
     {
