@@ -29,19 +29,6 @@ class Watershed {
     protected $dashboard;
     protected $dashboardId;
 
-    //look-up for card template ids
-    public $cardTemplateList = array (
-        "accomplishment" => 311,
-        "activity detail" => 161,
-        "activity stream" => 282,
-        "correlation" => 261,
-        "leaderboard" => 332,
-        "skills" => 301,
-        "group" => 281,
-        "barchart" => 571,
-        "linechart" => 781
-    );
-
     /*
     @constructor
     @param {String} [$url] API base endpoint. 
@@ -564,57 +551,6 @@ class Watershed {
     }
 
     /*
-    @method createInvitation Calls the API to create a skill. Prerequisite for creating a skill card. 
-    @param {String} [$activityName] xAPI activity name to use in the skill.
-    @param {String} [$xAPIActivityId] xAPI activity id to use in the skill.
-    @param {String} [$orgId] Id of the organization to create the skill on.
-    @return {Array} Details of the result of the request.
-        @return {Boolean} [success] Was the request was a success? 
-        @return {String} [content] Raw content of the response.
-        @return {Integer} [status] HTTP status code of the response e.g. 201.
-        @return {Integer} [skillId] Id of the skill created.
-    */
-    public function createSkill($activityName, $xAPIActivityId, $orgId) {
-
-        $skillConfigObj = array (
-            "name" => $activityName,
-            "components" => array (
-                array (
-                    "name" => "object.id",
-                    "value" => $xAPIActivityId
-                )
-            )
-        );
-
-        $response = $this->sendRequest("POST", "organizations/{$orgId}/skills", array(
-                "content" => json_encode($skillConfigObj)
-            )
-        );
-
-        $success = FALSE;
-        if ($response["status"] === 201) {
-            $success = TRUE ;
-        }
-
-        $return = array (
-            "success" => $success, 
-            "status" => $response["status"],
-            "content" => $response["content"]
-        );
-
-        $content = json_decode($response["content"]);
-
-        if (isset ($content->id)) {
-            $return["skillId"] = $content->id;
-        }
-        else {
-            $return["skillId"] = NULL;
-        }
-
-        return $return;
-    }
-
-    /*
     @method getCard Fetches a card, if it exists. 
     @param {String} [$orgId] Id of the organization to create the card on.
     @param {String} [$cardId] Id of the card.
@@ -658,7 +594,7 @@ class Watershed {
     /*
     @method createCard Calls the API to create a card. use helper functions for specific card types. 
     @param {Array} [$configuration] Card configuration "object" (do not JSON encode!).
-    @param {String} [$template] name of card template to use e.g. "leaderboard" or "Activity Detail".
+    @param {String} [$template] name of card template to use e.g. "leaderboard" or "activity".
     @param {Array} [$cardText] array of card test values
         @param {String} [$title] Card title
         @param {String} [$description] Card description
@@ -682,7 +618,7 @@ class Watershed {
                             "id" => $orgId
                         ),
                         "template" => array (
-                            "id" => $this->cardTemplateList[strtolower($template)]
+                            "name" => strtolower($template)
                         ),
                         "title" => $cardText["title"],
                         "description" => $cardText["description"],
@@ -704,7 +640,7 @@ class Watershed {
         );
 
         $content = json_decode($response["content"]);
-        
+
         if (isset ($content->id)) {
             $return["cardId"] = $content->id;
         }
@@ -718,7 +654,7 @@ class Watershed {
     /*
     @method createCard Calls the API to create a card within a group 
     @param {Array} [$configuration] Card configuration "object" (do not JSON encode!).
-    @param {String} [$template] name of card template to use e.g. "leaderboard" or "Activity Detail".
+    @param {String} [$template] name of card template to use e.g. "leaderboard" or "activity".
     @param {Array} [$cardText] array of card test values
         @param {String} [$title] Card title
         @param {String} [$description] Card description
@@ -832,59 +768,7 @@ class Watershed {
     }
 
     /*
-    @method createSkillCard Calls the API to create a skill, then create a card for that skill
-    @param {String} [$activityName] xAPI activity name to use in the skill.
-    @param {String} [$xAPIActivityId] xAPI activity id to use in the skill.
-    @param {Integer} [$orgId] Id of the organization to create the skill and card on.
-    @param {Integer} [$groupId] Id of the group to create the card in.
-    @param {String} [$groupName] Name of the group to create the card in.
-    @param {Array} [$cardText] array of card test values
-        @param {String} [$title] Card title
-        @param {String} [$description] Card description
-        @param {String} [$summary] Card summary
-    @return {Array} Details of the result of the request.
-        @return {Boolean} [success] Was the request was a success? 
-        @return {String} [content] Raw content of the response.
-        @return {Integer} [status] HTTP status code of the response e.g. 201.
-        @return {Integer} [cardId] Id of the card created.
-        @return {Integer} [skillId] Id of the skill created. 
-    */
-    public function createSkillCard($activityName, $xAPIActivityId, $orgId, $groupId = null, $groupName = null, $cardText = array()) {
-
-        $defaultCardText = array(
-            "title" => "Practicing {$activityName}",
-            "description" => "The Skills report card tells you how often learners practice.",
-            "summary" => "The Skills report card tells you how often learners practice."
-        );
-        $cardText = array_merge($defaultCardText, $cardText);
-
-        $response = $this->createSkill($activityName, $xAPIActivityId, $orgId);
-        if ($response["success"]) {
-            $skillId = $response["skillId"];
-
-            $configuration = array(
-                "filter" => array(
-                    "skillIds" => array ($skillId)
-                )
-            );
-
-            $response = $this->createCardInGroup(
-                $configuration, 
-                "skills", 
-                $cardText,
-                $orgId,
-                $groupId, 
-                $groupName
-            );
-
-            $response["skillId"] = $skillId;
-
-        } 
-        return $response;
-    }
-
-    /*
-    @method createActivityStreamCard Calls the API to create an activity stream card filtered by a base activity id URL.
+    @method createActivityStreamCard Calls the API to create an interactions card filtered by a base activity id URL.
     Uses regex to filter all activity ids starting with the activity id provided. 
     @param {String} [$activityName] xAPI activity name 
     @param {String} [$xAPIActivityId] xAPI activity id (or start of activity id)
@@ -904,8 +788,8 @@ class Watershed {
     public function createActivityStreamCard($activityName, $xAPIActivityId, $orgId, $groupId = null, $groupName = null, $cardText = array()) {
         $defaultCardText = array(
             "title" => "{$activityName} Activity",
-            "description" => "The Activity Stream report card tells you what's happening now.",
-            "summary" => "The Activity Stream report card tells you what's happening now."
+            "description" => "The Interactions report card tells you what's happening now.",
+            "summary" => "The Interactions report card tells you what's happening now."
         );
         $cardText = array_merge($defaultCardText, $cardText);
 
@@ -920,7 +804,7 @@ class Watershed {
 
         $response = $this->createCardInGroup(
             $configuration, 
-            "activity stream", 
+            "interactions", 
             $cardText,
             $orgId,
             $groupId
@@ -930,7 +814,7 @@ class Watershed {
     }
 
     /*
-    @method createActivityDetailCard Calls the API to create an activity detail card for a given activity id.
+    @method createActivityDetailCard Calls the API to create an activity card for a given activity id.
     @param {String} [$activityName] xAPI activity name 
     @param {String} [$xAPIActivityId] xAPI activity id
     @param {Integer} [$orgId] Id of the organization to create the skill and card on.
@@ -949,8 +833,8 @@ class Watershed {
     public function createActivityDetailCard($activityName, $xAPIActivityId, $orgId, $groupId = null, $groupName = null, $cardText = array()) {
         $defaultCardText = array(
             "title" => "{$activityName} Detail",
-            "description" => "The Activity Detail report card enables you to explore an activity in detail.",
-            "summary" => "The Activity Detail report card enables you to explore an activity in detail."
+            "description" => "The Activity report card enables you to explore an activity in detail.",
+            "summary" => "The Activity report card enables you to explore an activity in detail."
         );
         $cardText = array_merge($defaultCardText, $cardText);
 
@@ -965,7 +849,7 @@ class Watershed {
 
         $response = $this->createCardInGroup(
             $configuration, 
-            "activity detail", 
+            "activity", 
             $cardText, 
             $orgId,
             $groupId,
@@ -1122,7 +1006,7 @@ class Watershed {
 
         $response = $this->createCardInGroup(
             $configuration, 
-            "barchart", 
+            "bar", 
             $cardText,
             $orgId,
             $groupId,
@@ -1133,7 +1017,7 @@ class Watershed {
 
 
     /*
-    @method createBarchartCard Calls the API to create a barchart card for a given activity id.
+    @method createLinechartCard Calls the API to create a barchart card for a given activity id.
     @param {Array} [$measureList] List measures to use in the barchart. Contains an array of measure config arrays. 
         Each measure config array has a name key, and optional match and title keys. See getMeasure above for details. 
     @param {Array} [$dimensionName] xAPI activity name 
@@ -1204,7 +1088,7 @@ class Watershed {
 
         $response = $this->createCardInGroup(
             $configuration, 
-            "linechart", 
+            "line", 
             $cardText,
             $orgId,
             $groupId,
