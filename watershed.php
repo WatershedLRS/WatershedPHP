@@ -137,7 +137,7 @@ class Watershed {
         @return {String} [content] Raw content of the response
         @return {Integer} [status] HTTP status code of the response e.g. 201
     */
-    protected function sendRequest($method, $path) {
+    public function sendRequest($method, $path) {
         $options = func_num_args() === 3 ? func_get_arg(2) : array();
 
         $url = $this->endpoint."api/".$path;
@@ -1667,21 +1667,34 @@ class Watershed {
         );
     }
 
-    public function getCardData($orgId, $cardId, $cardType, $requireCached) {
+    public function getCardData($orgId, $cardId, $cardType, $requireCached, $orderType = "-", $orderBy = '0', $limit) {
         if ($orgId == null) {
             $orgId = $this->orgId;
         }
 
+        if ($orderType  == '+') {
+            $orderType = '';
+        }
+
         $requireCachedStr = ($requireCached) ? 'true' : 'false';
 
+        $limitstr = "";
+        if (!is_null($limit)) {
+           $limitstr = '&_limit='.$limit;
+        }
+
         $path = 'organizations/'.$orgId.'/'.$cardType.'/data';
-        $queryString = "order_by=-agg:0:value&cardId=".$cardId."&requireCached=".$requireCachedStr;
+        $queryString = "order_by=".$orderType."agg:".$orderBy.":value&cardId=".$cardId."&requireCached=".$requireCachedStr.$limitstr;
 
         $response = $this->sendRequest(
             "GET", 
             $path.'?'.$queryString,
             array ()
         );
+
+        if ($response["status"] === 404 && $requireCached === true) {
+            $response = $this->getCardData($orgId, $cardId, $cardType, false, $orderType, $orderBy, $limit);
+        }
 
         $return = array (
             "success" => FALSE, 
@@ -1692,7 +1705,7 @@ class Watershed {
         if ($response["status"] === 200) {
             $return["success"] = TRUE;
             $return["content"] = $this->processCardDataContent($requireCached, $response["content"]);
-        }
+        } 
 
         return $return;
     }
@@ -2011,6 +2024,45 @@ class Watershed {
     }
 
     /*
+    @method getGroupsByName Fetches a list of all Group in an org.
+    @param {String} [$orgId] Id of the organization to search.
+    @param {String} [$name] name to search for. 
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response
+        @return {Array} [groupTypes] List of group types
+    */
+    public function getGroupsByName($orgId, $name) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+        $nameStr = "";
+        if (!is_null($name)) {
+
+           $nameStr = '?name='.urlencode($name);
+        }
+
+        $response = $this->sendRequest(
+            "GET", 
+            'organizations/'.$orgId.'/groups'.$nameStr
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $content = json_decode($response["content"]);
+            $return["success"] = TRUE;
+            $return["groups"] = $content->results;
+        }
+        return $return;
+    }
+
+    /*
     @method createGroup Creates a Group. 
     @param {String} [$orgId] Id of the organization to search.
     @param {Obj} [$group] Group to create
@@ -2069,6 +2121,37 @@ class Watershed {
             'PUT', 
             'organizations/'.$orgId.'/groups/'.$groupId,
             $opts
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $return["success"] = TRUE;
+        }
+        return $return;
+    }
+
+    /*
+    @method deleteGroup deletes a Group. 
+    @param {String} [$orgId] Id of the organization to search.
+    @param {Int} [$groupId] Id of the organization to search.
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response
+    */
+    public function deleteGroup($orgId, $groupId) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+
+        $response = $this->sendRequest(
+            'DELETE', 
+            'organizations/'.$orgId.'/groups/'.$groupId
         );
 
         $return = array (
