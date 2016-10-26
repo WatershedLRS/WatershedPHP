@@ -26,7 +26,7 @@ class Watershed {
     protected $endpoint;
     protected $auth;
     protected $orgId;
-    protected $dashboard;
+    protected $dashboard = null;
     protected $dashboardId;
 
     /*
@@ -113,7 +113,7 @@ class Watershed {
     @param {String} [$value] dashboard name
     */
     public function setDashboard($value) {
-        //if (!$this->dashboard == $value){
+        if (!$this->dashboard == $value){
             $this->dashboard = $value;
             $response = $this->getCardGroup($this->orgId, $value);
             if ($response["status"] == 200) {
@@ -122,7 +122,7 @@ class Watershed {
             else {
                 throw new Exception('Unable to set dashboard id.');
             }
-        //}
+        }
         return $this;
     }
 
