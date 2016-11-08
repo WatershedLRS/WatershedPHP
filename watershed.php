@@ -432,6 +432,124 @@ class Watershed {
         return $return;
     }
 
+        /*
+    @method getOrganizations Gets a list of all organizations 
+    @param {String} [$search] partial org name to search for
+    @return {Array} Details of the result of the request
+        @return {Boolean} [success] Was the request was a success?
+        @return {String} [content] Raw content of the response
+        @return {Integer} [status] HTTP status code of the response e.g. 201
+        @return {Integer} [orgId] Id of the organization created. 
+    */
+    public function getOrganizations($search = null) {
+        $url = "organizations";
+        if (!is_null($search)){
+            $url = $url . '?in_name=' . urlencode($search);
+        }
+        $response = $this->sendRequest("GET", $url, array());
+
+        $success = FALSE;
+        if ($response["status"] === 200) {
+            $success = TRUE ;
+        }
+
+        $return = array (
+            "success" => $success, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        return $return;
+    }
+
+    /*
+    @method updateOrganization Calls the API to update an organization. 
+    @param {Object} [$org] Updated Org
+    @return {Array} Details of the result of the request
+        @return {Boolean} [success] Was the request was a success?
+        @return {String} [content] Raw content of the response
+        @return {Integer} [status] HTTP status code of the response e.g. 201
+        @return {Integer} [orgId] Id of the organization created. 
+    */
+    public function updateOrganization($org) {
+        $response = $this->sendRequest("PUT", "organizations/".$org->id, array(
+                "content" => json_encode($org)
+            )
+        );
+
+        $success = FALSE;
+        if ($response["status"] === 204) {
+            $success = TRUE ;
+        }
+
+        $return = array (
+            "success" => $success, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        return $return;
+    }
+
+    /*
+    @method getOrganizationSettings gets the settings for an org
+    @param {String} [$orgid] id of org to get settings for
+    @return {Array} Details of the result of the request
+        @return {Boolean} [success] Was the request was a success?
+        @return {String} [content] Raw content of the response
+        @return {Integer} [status] HTTP status code of the response e.g. 201
+        @return {Integer} [orgId] Id of the organization created. 
+    */
+    public function getOrganizationSettings($orgId) {
+        $url = "organizations/".$orgId."/settings";
+
+        $response = $this->sendRequest("GET", $url, array());
+
+        $success = FALSE;
+        if ($response["status"] === 200) {
+            $success = TRUE ;
+        }
+
+        $return = array (
+            "success" => $success, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        return $return;
+    }
+
+    /*
+    @method getOrganizationSettings gets the settings for an org
+    @param {String} [$orgid] id of org to set settings for
+    @param {Object} [$settings] new settings for the org
+    @return {Array} Details of the result of the request
+        @return {Boolean} [success] Was the request was a success?
+        @return {String} [content] Raw content of the response
+        @return {Integer} [status] HTTP status code of the response e.g. 201
+        @return {Integer} [orgId] Id of the organization created. 
+    */
+    public function updateOrganizationSettings($orgId, $settings) {
+        $url = "organizations/".$orgId."/settings";
+
+        $response = $this->sendRequest("PUT", $url, array(
+            "content" => json_encode($settings)
+        ));
+
+        $success = FALSE;
+        if ($response["status"] === 204) {
+            $success = TRUE ;
+        }
+
+        $return = array (
+            "success" => $success, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        return $return;
+    }
+
     /*
     @method createActivityProvider Calls the API to create new actvity provider credentials. 
     @param {String} [$name] Name of the activity to create. 
@@ -539,6 +657,50 @@ class Watershed {
         $success = FALSE;
         if ($response["status"] === 201) {
             $success = TRUE ;
+        }
+
+        $return = array (
+            "success" => $success, 
+            "status" => $response["status"],
+            "content" => $response["content"],
+        );
+
+        return $return;
+    }
+
+
+
+     /*
+    @method deleteMembershipByUsername Calls the API to from a user from an org. 
+    @param {String} [$email] Email address of the person to invite.
+    @param {String} [$orgId] Id of the organization to create the invite on.
+    @return {Array} Details of the result of the request
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response
+        @return {Integer} [status] HTTP status code of the response e.g. 201
+    */
+    public function deleteMembershipByUsername($email, $orgId) {
+
+        $response = $this->sendRequest("GET", "organizations/".$orgId."/memberships", array());
+
+        $success = FALSE;
+        if ($response["status"] !== 200) {
+            return array (
+                "success" => $success, 
+                "status" => $response["status"],
+                "content" => $response["content"],
+            );
+        }
+
+        $memberships = json_decode($response["content"])->results;
+
+        foreach ($memberships as $membership) {
+            if ($membership->user->username === $email) {
+                $response = $this->sendRequest("DELETE", "memberships/".$membership->id, array());
+                if ($response["status"] === 200) {
+                    $success = TRUE;
+                }
+            } 
         }
 
         $return = array (
