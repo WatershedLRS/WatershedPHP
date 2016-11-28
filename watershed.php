@@ -1428,7 +1428,7 @@ class Watershed {
             array (
                 "cardGroupId"=> $groupId
             ), 
-            "group", 
+            "card-group", 
             $cardText, 
             $orgId, 
             $parentGroupId,
@@ -1829,7 +1829,7 @@ class Watershed {
         );
     }
 
-    public function getCardData($orgId, $cardId, $cardType, $requireCached, $orderType = "-", $orderBy = '0', $limit) {
+    public function getCardData($orgId, $cardId, $cardType, $requireCached, $orderType = "-", $orderBy = '0', $limit = null) {
         if ($orgId == null) {
             $orgId = $this->orgId;
         }
@@ -1846,7 +1846,8 @@ class Watershed {
         }
 
         $path = 'organizations/'.$orgId.'/'.$cardType.'/data';
-        $queryString = "order_by=".$orderType."agg:".$orderBy.":value&cardId=".$cardId."&requireCached=".$requireCachedStr.$limitstr;
+        $orderby = urlencode($orderType."measure[".$orderBy."].value");
+        $queryString = "order_by=".$orderby."&cardId=".$cardId."&requireCached=".$requireCachedStr.$limitstr;
 
         $response = $this->sendRequest(
             "GET", 
