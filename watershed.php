@@ -1480,7 +1480,7 @@ class Watershed {
         }
         $response = $this->sendRequest(
             "GET", 
-            "organizations/{$orgId}/card-groups/?name={$cardGroupName}"
+            "organizations/{$orgId}/card-groups/?name=".urlencode($cardGroupName)
         );
 
         $return = array (
