@@ -723,10 +723,19 @@ class Watershed {
         @return {Integer} [groupId] Id of the group found. 
         @return {Array} [cardIds] Ids of the cards in the group.
     */
-    public function getCard($orgId, $cardId) {
+    public function getCard($orgId = null, $cardId = null) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+
+        $url = "organizations/{$orgId}/cards/";
+        if ($cardId !== null) {
+            $url .= "?id={$cardId}";
+        }
+
         $response = $this->sendRequest(
             "GET", 
-            "organizations/{$orgId}/cards/?id={$cardId}"
+            $url
         );
 
         $return = array (
@@ -887,8 +896,10 @@ class Watershed {
 
     /*
     @method updateCardConfig Calls the API to update a card's config. 
-    @param {String} [$id] Id of the card to delete. 
-    @param {String} [$orgId] Id of the organization to delete the card on.
+    @param {String} [$cardId] Id of the card to update. 
+    @param {Arr} [$newConfig] Partial or complete new configuration to update. 
+    Old and new configs will be merged.
+    @param {String} [$orgId] Id of the organization to update the card on.
     @return {Array} Details of the result of the request
         @return {Boolean} [success] Was the request was a success? 
         @return {String} [content] Raw content of the response
@@ -916,7 +927,7 @@ class Watershed {
         );
 
         $success = FALSE;
-        if ($response["status"] === 200) {
+        if ($response["status"] === 204) {
             $success = TRUE ;
         }
 
