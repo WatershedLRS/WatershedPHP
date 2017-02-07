@@ -1932,7 +1932,9 @@ class Watershed {
             $content = json_decode($response["content"]);
             $return["success"] = TRUE;
             $return["personId"] = $content->id;
-            $return["name"] = $content->name;
+            if (isset($content->name)){
+                $return["name"] = $content->name;
+            }
             $return["personas"] = $content->personas;
         }
 
