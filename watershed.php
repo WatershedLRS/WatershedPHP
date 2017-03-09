@@ -2361,7 +2361,8 @@ class Watershed {
         foreach ($measures as $measure) {
             $config = (object)[
                 'name' => $measure->name,
-                'config' => json_encode($measure)
+                'config' => $measure,
+                'visibility' => 'everyone'
             ];
 
             $opts = array(
@@ -2378,6 +2379,53 @@ class Watershed {
                 break;
             }
         }
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 201) {
+            $return["success"] = TRUE;
+        }
+        return $return;
+    }
+
+    /*
+    @method createMeasure creates a measure in the org
+    @param {String} [$orgId] Id of the organization .
+    @param {String} [$name] Name of the measure
+    @param {Object} [$config] Config of the measure
+    @param {String} [$visibility] Visibility of the measure
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? 
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response
+    */
+    public function createMeasure($orgId, $name, $config, $visibility) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+        if ($visibility == null) {
+            $visibility = 'everyone';
+        }
+
+        $config = (object)[
+            'name' => $name,
+            'config' => $config,
+            'visibility' => $visibility
+        ];
+
+        $opts = array(
+            'content' => json_encode($config)
+        );
+        
+        $response = $this->sendRequest(
+            'POST', 
+            'organizations/'.$orgId.'/measures/',
+            $opts
+        );
 
         $return = array (
             "success" => FALSE, 
