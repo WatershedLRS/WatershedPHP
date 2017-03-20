@@ -1902,6 +1902,48 @@ class Watershed {
     }
 
     /*
+    @method getPeople Fetches a list of all people
+    @param {String} [$orgId] Id of the organization.
+    @param {Integer} [$offset] Offset of the request for paging.
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? (false if group does not exist)
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 404 if group does not exist
+        @return {Array} [people] Array of people
+        @return {Array} [personas] List of personas belonging to the persona
+    */
+    public function getPeople($orgId, $offset = 0) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+
+        $limit = 1000;
+
+        $response = $this->sendRequest(
+            "GET", 
+            'organizations/'.$orgId.'/people/?_offset='.$offset.'&_limit='.$limit
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $content = json_decode($response["content"]);
+            $return["success"] = TRUE;
+            $return["people"] = $content->results;
+
+            if ($content->count > $limit) {
+                $return["offset"] = $offset + $limit;
+            }
+        }
+
+        return $return;
+    }
+
+    /*
     @method getPersonByPersona Fetches a person by persona, if it exists. 
     @param {String} [$orgId] Id of the organization.
     @param {Object} [$persona] Persona object.
@@ -2014,7 +2056,7 @@ class Watershed {
     }
 
     /*
-    @method createPerson Creates a person 
+    @method createPermission Creates a person 
     @param {String} [$orgId] Id of the organization
     @param {Object} [$permission] Permission object.
     @return {Array} Details of the result of the series of requests.
