@@ -2056,6 +2056,38 @@ class Watershed {
     }
 
     /*
+    @method deletePerson Deletes a person 
+    @param {String} [$orgId] Id of the organization.
+    @param {Integer} [personId] Person's id
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? (false if group does not exist)
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 404 if group does not exist
+    */
+    public function deletePerson($orgId, $personId) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+        $response = $this->sendRequest(
+            "DELETE", 
+            'organizations/'.$orgId.'/people/'.$personId,
+            array ()
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 204 || $response["status"] === 200) {
+            $return["success"] = TRUE;
+        }
+
+        return $return;
+    }
+
+    /*
     @method createPermission Creates a person 
     @param {String} [$orgId] Id of the organization
     @param {Object} [$permission] Permission object.
