@@ -2229,7 +2229,7 @@ class Watershed {
             "content" => $response["content"]
         );
 
-        if ($response["status"] === 200) {
+        if ($response["status"] === 201) {
             $return["success"] = TRUE;
         }
         return $return;
@@ -2342,7 +2342,7 @@ class Watershed {
             "content" => $response["content"]
         );
 
-        if ($response["status"] === 200) {
+        if ($response["status"] === 201) {
             $return["success"] = TRUE;
         }
         return $return;
