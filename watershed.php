@@ -1984,6 +1984,54 @@ class Watershed {
     }
 
     /*
+    @method getPersonByCustomId Fetches a person by persona, if it exists. 
+    @param {String} [$orgId] Id of the organization.
+    @param {String} [$customId] Custom Id for the Person.
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? (false if group does not exist)
+        @return {String} [content] JSON Person
+        @return {Integer} [status] HTTP status code of the response e.g. 404 if person does not exist
+        @return {Integer} [personId] Person's id
+        @return {String} [name] Person's name
+        @return {Array} [personas] List of personas belonging to the persona
+    */
+    public function getPersonByCustomId($orgId, $customId) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+        $response = $this->sendRequest(
+            "GET", 
+            'organizations/'.$orgId.'/people/?customId='.$customId
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $content = json_decode($response["content"]);
+            if (count($content->results) === 0){
+                $return["success"] = FALSE;
+                $return["status"] = 404;
+                $return["content"] = "Person ".$customId." not found.";
+            }
+            else {
+                $person = $content->results[0];
+                $return["content"] = json_encode($person);
+                $return["success"] = TRUE;
+                $return["personId"] = $person->id;
+                if (isset($person->name)){
+                    $return["name"] = $person->name;
+                }
+                $return["personas"] = $person->personas;
+            }
+        }
+        return $return;
+    }
+
+    /*
     @method createPerson Creates a person 
     @param {String} [$orgId] Id of the organization.
     @param {Object} [$person] Person object.
@@ -2053,6 +2101,62 @@ class Watershed {
         }
 
         return $return;
+    }
+
+    /*
+    @method addPersonaByCustomId Fetches a person by persona, if it exists. 
+    @param {String} [$orgId] Id of the organization.
+    @param {String} [$customId] Custom Id for the Person.
+    @param {Object} [$newPersona] Persona object to add
+    @return {Array} Details of the result of the series of requests.
+        @return {Boolean} [success] Was the request was a success? (false if group does not exist)
+        @return {String} [content] Raw content of the response.
+        @return {Integer} [status] HTTP status code of the response e.g. 404 if group does not exist
+        @return {Integer} [personId] Person's id
+        @return {String} [name] Person's name
+        @return {Array} [personas] List of personas belonging to the persona
+    */
+    public function addPersonaByCustomId($orgId, $customId, $newPersona) {
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+
+        $response = $this->getPersonByCustomId($orgId, $customId);
+        if ($response["success"] === FALSE){
+            return $response;
+        }
+
+        $ifiType = null;
+        $ifiList = ["mbox", "mbox_sha1sum", "openid", "account"];
+        foreach ($ifiList as $ifi) {
+            if (isset($newPersona->$ifi)){
+                $ifiType = $ifi;
+                break;
+            }
+        }
+
+        if (is_null($ifiType)){
+            return [
+                "success" => FALSE,
+                "status" => 400,
+                "content" => "Invalid persona."
+            ];
+        }
+
+        $person = json_decode($response["content"]);
+        foreach ($person->personas as $index => $persona) {
+            if (isset($persona->$ifiType) && $newPersona->$ifiType === $persona->$ifiType) {
+                // Persona already exists in person.
+                return [
+                    "success" => TRUE,
+                    "status" => 200,
+                    "content" => $response["content"]
+                ];
+            }
+        }
+        array_push($person->personas, $newPersona);
+
+        return $this->updatePerson($orgId, $person->id, $person);
     }
 
     /*
