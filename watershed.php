@@ -44,11 +44,15 @@ class Watershed {
     @param {Integer} [$orgId] Organization ID to make calls in
     @param {Integer} [$dashboard] Dashboard ID to make calls in
     */
-    public function __construct($url, $authCfg, $orgId, $dashboard) {
+    public function __construct($url, $authCfg, $orgId = null, $dashboard = null) {
         $this->setEndpoint($url);
         $this->setAuth($authCfg);
-        $this->setOrgId($orgId);
-        $this->setDashboard($dashboard);
+        if (!is_null($orgId)){
+            $this->setOrgId($orgId);
+        }
+        if (!is_null($dashboard)){
+            $this->setDashboard($dashboard);
+        }
     }
 
     /*
@@ -2001,7 +2005,7 @@ class Watershed {
         }
         $response = $this->sendRequest(
             "GET", 
-            'organizations/'.$orgId.'/people/?customId='.$customId
+            'organizations/'.$orgId.'/people/?customId='.urlencode($customId)
         );
 
         $return = array (
