@@ -144,6 +144,10 @@ class Watershed {
     public function sendRequest($method, $path) {
         $options = func_num_args() === 3 ? func_get_arg(2) : array();
 
+        if (!isset($options['contentType'])){
+            $options['contentType'] = 'application/json';
+        }
+
         $url = $this->endpoint."api/".$path;
 
         $http = array(
@@ -174,12 +178,17 @@ class Watershed {
         if (($method === 'PUT' || $method === 'POST') && isset($options['content'])) {
             $http['content'] = $options['content'];
             array_push($http['header'], 'Content-length: ' . strlen($options['content']));
-            array_push($http['header'], 'Content-Type: application/json');
+            array_push($http['header'], 'Content-Type: ' . $options['contentType']);
         }
+
         $context = stream_context_create(array( 'http' => $http ));
         $fp = fopen($url, 'rb', false, $context);
         if (! $fp) {
-            throw new \Exception("Request failed: $php_errormsg");
+            return array (
+                "metadata" => null,
+                "content" => $content,
+                "status" => 0
+            );
         }
         $metadata = stream_get_meta_data($fp);
         $content  = stream_get_contents($fp);
@@ -727,7 +736,7 @@ class Watershed {
         @return {Integer} [groupId] Id of the group found. 
         @return {Array} [cardIds] Ids of the cards in the group.
     */
-    public function getCard($orgId = null, $cardId = null) {
+    public function getCard($orgId = null, $cardId = null, $offset = 0) {
         if ($orgId == null) {
             $orgId = $this->orgId;
         }
@@ -735,7 +744,10 @@ class Watershed {
         $url = "organizations/{$orgId}/cards/";
         if ($cardId !== null) {
             $url .= "?id={$cardId}";
-        }
+        } 
+        elseif ($offset != 0){
+            $url .= "?_offset={$offset}";
+        } 
 
         $response = $this->sendRequest(
             "GET", 
@@ -751,7 +763,7 @@ class Watershed {
         if ($response["status"] === 200) {
             $content = json_decode($response["content"]);
 
-            if ($content->count > 0) {
+            if (count($content->results) > 0) {
                 $return["success"] = TRUE;
                 $return["cardId"] = $content->results[0]->id;
             }
@@ -2353,18 +2365,18 @@ class Watershed {
         @return {Integer} [status] HTTP status code of the response
         @return {Array} [groupTypes] List of group types
     */
-    public function getGroups($orgId, $customId) {
+    public function getGroups($orgId, $customId, $offset = 0) {
         if ($orgId == null) {
             $orgId = $this->orgId;
         }
-        $customIdStr = "";
+        $customIdStr = "?_offset=".$offset;
         if (!is_null($customId)) {
-           $customIdStr = '?in_customId='.$customId;
+           $customIdStr .= '&in_customId='.$customId;
         }
 
         $response = $this->sendRequest(
             "GET", 
-            'organizations/'.$orgId.'/groups'.$customIdStr
+            'organizations/'.$orgId.'/groups/'.$customIdStr
         );
 
         $return = array (
@@ -2684,6 +2696,63 @@ class Watershed {
 
         if ($response["status"] === 200) {
             $return["success"] = TRUE;
+        }
+        return $return;
+    }
+
+    public function uploadCSV($orgId, $templateName, $csv, $fileName){
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+        $boundary = '49796fc0ec874b6692810e820932ccfb';
+        $content = '--'.$boundary.PHP_EOL;
+        $content .= 'Content-Disposition: form-data; name="file"; filename="'.$fileName.'.csv"'.PHP_EOL;
+        $content .= 'Content-Type: text/csv'.PHP_EOL.PHP_EOL;
+        $content .= $csv.PHP_EOL.PHP_EOL;
+        $content .= '--'.$boundary.'--';
+
+        $response = $this->sendRequest(
+            'POST', 
+            'organizations/'.$orgId.'/csv-import?template='.urlencode($templateName),
+            [
+                'content' => $content,
+                'contentType' => 'multipart/form-data; boundary='.$boundary
+            ]
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 202) {
+            $return["success"] = TRUE;
+            $return["jobId"] = $response["content"];
+        }
+        return $return;
+    }
+
+    public function getCSVJobStatus($orgId, $jobId){
+        if ($orgId == null) {
+            $orgId = $this->orgId;
+        }
+        $response = $this->sendRequest(
+            'GET', 
+            'organizations/'.$orgId.'/csv-import/job/'.$jobId,
+            null
+        );
+
+        $return = array (
+            "success" => FALSE, 
+            "status" => $response["status"],
+            "content" => $response["content"]
+        );
+
+        if ($response["status"] === 200) {
+            $return["success"] = TRUE;
+            $return["content"] = json_decode($response["content"]);
+            $return["percentage"] = $return["content"]->percentage;
         }
         return $return;
     }
